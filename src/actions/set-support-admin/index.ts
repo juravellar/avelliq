@@ -12,7 +12,7 @@ import { recordAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 import { findAccount } from "@/lib/support/accounts";
-import { isOwnerEmail, isSupportOwner } from "@/lib/support/admin";
+import { isSupportOwner } from "@/lib/support/admin";
 
 // Gives or takes away access to the support inbox. Only owners
 // (SUPPORT_ADMIN_EMAILS) choose the admins; owners themselves are always in.
@@ -27,7 +27,7 @@ export const setSupportAdmin = actionClient
     if (!account) {
       throw new UserFacingError("Conta não encontrada.");
     }
-    if (isOwnerEmail(account.email)) {
+    if (isSupportOwner(account)) {
       throw new UserFacingError(
         "Esta é uma conta principal (SUPPORT_ADMIN_EMAILS) e sempre tem acesso.",
       );
@@ -36,6 +36,11 @@ export const setSupportAdmin = actionClient
       throw new UserFacingError(
         "A pessoa precisa confirmar o e-mail da conta antes de virar admin.",
       );
+    }
+
+    // A second click from an old page changes nothing and isn't audited.
+    if (account.supportAdmin === parsedInput.admin) {
+      return { admin: parsedInput.admin };
     }
 
     await db.transaction(async (tx) => {

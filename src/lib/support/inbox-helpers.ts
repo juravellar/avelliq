@@ -39,9 +39,32 @@ export const replySubject = (subject: string | null) => {
   return /^re:/i.test(original) ? original : `Re: ${original}`;
 };
 
-// Sent by the "Falar com a equipe" form, not by e-mail directly.
-export const isHelpFormMessage = (email: ReceivedEmailSummary) =>
-  !!email.subject?.startsWith("[Avelliq ·");
+const sameAddress = (a: string, b: string) =>
+  addressOf(a).toLowerCase() === addressOf(b).toLowerCase();
+
+// Sent by the "Falar com a equipe" form, not by e-mail directly. The subject
+// alone can be typed by anyone, so the sender must be Avelliq's own address.
+export const isHelpFormMessage = (
+  email: ReceivedEmailSummary,
+  formSender = process.env.EMAIL_FROM,
+) =>
+  !!formSender &&
+  !!email.subject?.startsWith("[Avelliq ·") &&
+  sameAddress(email.from, formSender);
+
+// The domain receives mail for any address (admin@, financeiro@, ...). Only
+// what was sent to the support addresses belongs to the support team.
+export const isForSupport = (
+  email: ReceivedEmailSummary,
+  supportAddresses = [process.env.SUPPORT_EMAIL, process.env.SUPPORT_INBOX],
+) => {
+  const support = supportAddresses.filter((address): address is string =>
+    Boolean(address?.trim()),
+  );
+  return email.to.some((to) =>
+    support.some((address) => sameAddress(to, address)),
+  );
+};
 
 // The original below the answer, as e-mail clients quote it.
 export const quotedOriginal = (email: ReceivedEmail, receivedAt: string) => {

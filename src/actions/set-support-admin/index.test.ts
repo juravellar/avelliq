@@ -33,7 +33,12 @@ const owner = {
   email: "principal@avelliq.com",
   emailVerified: true,
 };
-const account = { id: "u1", email: "ana@clinica.com", emailVerified: true };
+const account = {
+  id: "u1",
+  email: "ana@clinica.com",
+  emailVerified: true,
+  supportAdmin: false,
+};
 
 describe("setSupportAdmin", () => {
   beforeEach(() => {
@@ -59,10 +64,20 @@ describe("setSupportAdmin", () => {
       expect.anything(),
     );
 
+    mocks.findAccount.mockResolvedValue({ ...account, supportAdmin: true });
     await setSupportAdmin({ userId: "u1", admin: false });
     expect(mocks.update).toHaveBeenLastCalledWith(
       expect.objectContaining({ supportAdmin: false }),
     );
+  });
+
+  it("changes nothing and records nothing when the account already is that way", async () => {
+    mocks.findAccount.mockResolvedValue({ ...account, supportAdmin: true });
+    expect(
+      (await setSupportAdmin({ userId: "u1", admin: true }))?.data,
+    ).toEqual({ admin: true });
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
   });
 
   it("refuses admins who aren't owners", async () => {

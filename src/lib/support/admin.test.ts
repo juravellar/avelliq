@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { isOwnerEmail, isSupportAdmin, isSupportOwner } from "./admin";
+import { isSupportAdmin, isSupportOwner } from "./admin";
 
 describe("isSupportOwner", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -13,7 +13,6 @@ describe("isSupportOwner", () => {
     expect(isSupportOwner({ email: "OUTRA@x.com", emailVerified: true })).toBe(
       true,
     );
-    expect(isOwnerEmail(" outra@X.com")).toBe(true);
   });
 
   it("refuses everyone else, unconfirmed e-mails and an empty list", () => {

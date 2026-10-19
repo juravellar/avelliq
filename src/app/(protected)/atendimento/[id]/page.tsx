@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageContainer, PageContent } from "@/components/ui/page-container";
 import { inClinicTimezone } from "@/helpers/time";
 import { getServerSession } from "@/lib/server-session";
-import { isSupportAdmin } from "@/lib/support/admin";
+import { isSupportAdmin, isSupportOwner } from "@/lib/support/admin";
 import {
   getReceivedEmail,
   InboxError,
@@ -16,6 +16,7 @@ import {
   isReceivedEmailId,
 } from "@/lib/support/inbox";
 import {
+  isForSupport,
   isHelpFormMessage,
   type ReceivedEmail,
   replyTarget,
@@ -50,6 +51,9 @@ const ReceivedEmailPage = async ({
       error = caught;
       console.error("Support e-mail not loaded:", (caught as Error).message);
     }
+  }
+  if (email && !isSupportOwner(session?.user) && !isForSupport(email)) {
+    notFound();
   }
 
   return (

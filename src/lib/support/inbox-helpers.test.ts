@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   addressOf,
+  isForSupport,
   isHelpFormMessage,
   nameOf,
   quotedOriginal,
   replySubject,
   replyTarget,
 } from "./inbox-helpers";
+
+const FORM_SENDER = "Avelliq <nao-responda@mail.avelliq.com.br>";
 
 const email = {
   id: "1",
@@ -24,13 +27,33 @@ const email = {
 describe("inbox helpers", () => {
   it("answers the help form's sender through its Reply-To", () => {
     expect(replyTarget(email)).toBe("ana@clinica.com");
-    expect(isHelpFormMessage(email)).toBe(true);
+    expect(isHelpFormMessage(email, FORM_SENDER)).toBe(true);
+  });
+
+  it("doesn't take an outside e-mail with the form's subject as a form message", () => {
+    const forged = { ...email, from: "Golpe <golpe@x.com>" };
+    expect(isHelpFormMessage(forged, FORM_SENDER)).toBe(false);
+    expect(isHelpFormMessage(email, undefined)).toBe(false);
+  });
+
+  it("tells mail for the support addresses from the rest of the domain", () => {
+    const support = ["Avelliq <sac@mail.avelliq.com.br>", undefined];
+    expect(isForSupport(email, support)).toBe(true);
+    expect(
+      isForSupport({ ...email, to: ["SAC@mail.avelliq.com.br"] }, support),
+    ).toBe(true);
+    expect(
+      isForSupport({ ...email, to: ["admin@mail.avelliq.com.br"] }, support),
+    ).toBe(false);
+    expect(isForSupport(email, [undefined, ""])).toBe(false);
   });
 
   it("answers a direct e-mail to whoever sent it", () => {
     const direct = { ...email, from: "Bruno Lima <bruno@x.com>", reply_to: [] };
     expect(replyTarget(direct)).toBe("bruno@x.com");
-    expect(isHelpFormMessage({ ...direct, subject: "Dúvida" })).toBe(false);
+    expect(
+      isHelpFormMessage({ ...direct, subject: "Dúvida" }, FORM_SENDER),
+    ).toBe(false);
   });
 
   it("reads names and addresses from the From header", () => {

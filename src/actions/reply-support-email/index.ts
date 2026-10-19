@@ -5,12 +5,14 @@ import { z } from "zod";
 
 import { inClinicTimezone } from "@/helpers/time";
 import { UserFacingError } from "@/lib/action-errors";
+import { recordAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { isEmailConfigured, sendEmail, supportReplyEmail } from "@/lib/email";
 import { actionClient } from "@/lib/next-safe-action";
-import { isSupportAdmin } from "@/lib/support/admin";
+import { isSupportAdmin, isSupportOwner } from "@/lib/support/admin";
 import { getReceivedEmail, isInboxConfigured } from "@/lib/support/inbox";
 import {
+  isForSupport,
   quotedOriginal,
   replySubject,
   replyTarget,
@@ -43,6 +45,9 @@ export const replySupportEmail = actionClient
     }
 
     const original = await getReceivedEmail(parsedInput.id);
+    if (!isSupportOwner(session?.user) && !isForSupport(original)) {
+      throw new UserFacingError("Acesso negado.");
+    }
     const to = replyTarget(original);
     const receivedAt = inClinicTimezone(new Date(original.created_at)).format(
       "DD/MM/YYYY [às] HH:mm",
@@ -62,5 +67,15 @@ export const replySupportEmail = actionClient
           }
         : undefined,
     });
+    // Which admin answered which e-mail; the reply itself already went out,
+    // so a failure here is only logged.
+    await recordAudit({
+      userId: session!.user.id,
+      clinicId: null,
+      action: "support.replied",
+      entityId: original.id,
+    }).catch((error) =>
+      console.error("Support reply not audited:", (error as Error).message),
+    );
     return { sentTo: to };
   });

@@ -13,7 +13,7 @@ interface StaffCandidate {
   supportAdmin?: boolean | null;
 }
 
-export const isOwnerEmail = (email: string) =>
+const isOwnerEmail = (email: string) =>
   supportOwners().includes(email.trim().toLowerCase());
 
 // Only a confirmed address counts, so nobody can claim an owner's e-mail by

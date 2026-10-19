@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ import {
   listAccounts,
   pageNumber,
 } from "@/lib/support/accounts";
-import { isOwnerEmail, isSupportOwner } from "@/lib/support/admin";
+import { isSupportOwner } from "@/lib/support/admin";
 
 import { AdminToggle } from "./_components/admin-toggle";
 
@@ -59,6 +59,9 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
   const page = pageNumber(params.pagina);
   const { rows, total } = await listAccounts({ search, page });
   const pages = Math.max(1, Math.ceil(total / ACCOUNTS_PAGE_SIZE));
+  if (page > pages) {
+    redirect(pageHref(search, pages));
+  }
 
   return (
     <PageContainer>
@@ -96,7 +99,7 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
         ) : (
           <ul className="divide-y rounded-lg border">
             {rows.map((account) => {
-              const owner = isOwnerEmail(account.email);
+              const owner = isSupportOwner(account);
               return (
                 <li
                   key={account.id}
