@@ -72,7 +72,7 @@ const AuthenticationPage = async () => {
           </ul>
         </div>
         <p className="text-xs text-white/70">
-          Comece grátis por 3 meses. Sem cartão de crédito.
+          Comece grátis por 3 meses no plano Free. Sem cartão de crédito.
         </p>
       </aside>
 
