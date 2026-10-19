@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { SupportWidget } from "@/components/support/support-widget";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { brandStylesheet, clinicLogoUrl } from "@/lib/branding";
 import { getServerSession } from "@/lib/server-session";
@@ -45,6 +46,10 @@ export default async function Layout({ children }: { children: ReactNode }) {
           <AccountStatusBanner />
           <PageTransition>{children}</PageTransition>
           <TermsGate />
+          <SupportWidget
+            user={{ name: session.user.name, email: session.user.email }}
+            supportEmail={process.env.SUPPORT_EMAIL ?? null}
+          />
         </main>
       </SidebarProvider>
     </SessionProvider>

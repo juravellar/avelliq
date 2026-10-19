@@ -10,6 +10,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { SupportWidget } from "@/components/support/support-widget";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isEmailConfigured } from "@/lib/email";
 
@@ -102,6 +103,7 @@ const AuthenticationPage = async () => {
           </Link>
         </nav>
       </main>
+      <SupportWidget supportEmail={process.env.SUPPORT_EMAIL ?? null} />
     </div>
   );
 };

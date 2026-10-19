@@ -203,6 +203,13 @@ export default function PrivacyPolicyPage() {
         esta política ou para exercer seus direitos; os pedidos são respondidos
         em até 15 dias.
       </p>
+      <p>
+        Mensagens enviadas pelo botão de ajuda (opção &quot;Falar com a
+        equipe&quot;) chegam por e-mail à nossa equipe, enviadas pelo Resend,
+        com nome, e-mail, assunto e mensagem e, se você estiver logado, a
+        clínica e o plano. Elas servem só para responder ao seu pedido. Não
+        inclua dados de pacientes nessas mensagens.
+      </p>
 
       <h2>9. Alterações</h2>
       <p>
