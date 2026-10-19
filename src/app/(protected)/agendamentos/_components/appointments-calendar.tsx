@@ -21,7 +21,13 @@ import { cn } from "@/lib/utils";
 
 import { BlockedCreateDialog } from "../../_components/blocked-create-dialog";
 import UpsertAppointmentForm from "./add-appointment-form";
-import { cellKey, groupByCell, isDoctorWorking, shiftWeek } from "./calendar";
+import {
+  cellKey,
+  groupByCell,
+  isDoctorWorking,
+  shiftWeek,
+  shownMobileDay,
+} from "./calendar";
 import type { PatientOption } from "./patient-option";
 
 type Doctor = typeof doctorsTable.$inferSelect;
@@ -68,10 +74,8 @@ export function AppointmentsCalendar({
   } | null>(null);
   const [blockedOpen, setBlockedOpen] = useState(false);
   const [editing, setEditing] = useState<CalendarAppointment | null>(null);
-  // Phones show one day at a time: today when it is in this week.
-  const [mobileDay, setMobileDay] = useState(
-    days.includes(now.day) ? now.day : days[0],
-  );
+  const [chosenDay, setMobileDay] = useState<string | null>(null);
+  const mobileDay = shownMobileDay(days, chosenDay, now.day);
 
   const shown = doctorId
     ? doctors.filter(({ id }) => id === doctorId)

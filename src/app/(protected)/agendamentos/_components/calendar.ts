@@ -77,6 +77,19 @@ export const calendarSlots = (doctors: CalendarDoctor[]) => {
 };
 
 // Where an appointment goes in the grid: its clinic day and slot.
+// Phones show one day at a time: the one picked when it is in the week on
+// screen, otherwise today when it is in that week, otherwise Monday. Moving to
+// another week keeps the component mounted, so a picked day from the previous
+// week must not hide every column.
+export const shownMobileDay = (
+  days: string[],
+  chosen: string | null,
+  today: string,
+) => {
+  if (chosen && days.includes(chosen)) return chosen;
+  return days.includes(today) ? today : days[0];
+};
+
 export const cellKey = (day: string, slot: string) => `${day}|${slot}`;
 
 export const appointmentCell = (date: Date) => {

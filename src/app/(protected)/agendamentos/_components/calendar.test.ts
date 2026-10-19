@@ -8,6 +8,7 @@ import {
   groupByCell,
   isDoctorWorking,
   shiftWeek,
+  shownMobileDay,
   weekDays,
   weekStart,
 } from "./calendar";
@@ -88,5 +89,20 @@ describe("groupByCell", () => {
     expect(
       appointmentCell(clinicDateTimeToDate("2026-10-19", "23:30:00")),
     ).toBe("2026-10-19|23:30:00");
+  });
+});
+
+describe("shownMobileDay", () => {
+  const week = weekDays("2026-10-19");
+  const next = weekDays("2026-10-26");
+
+  it("keeps the picked day while it is in the week on screen", () => {
+    expect(shownMobileDay(week, "2026-10-22", "2026-10-20")).toBe("2026-10-22");
+  });
+
+  it("falls back to today, then to Monday, in another week", () => {
+    expect(shownMobileDay(week, null, "2026-10-20")).toBe("2026-10-20");
+    expect(shownMobileDay(next, "2026-10-22", "2026-10-20")).toBe("2026-10-26");
+    expect(shownMobileDay(week, "2026-10-29", "2026-10-20")).toBe("2026-10-20");
   });
 });

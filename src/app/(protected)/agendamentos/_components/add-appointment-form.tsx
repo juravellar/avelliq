@@ -46,7 +46,11 @@ import {
 } from "@/components/ui/select";
 import { appointmentsTable, doctorsTable } from "@/db/schema";
 import { priceInCentsForDoctor } from "@/helpers/appointment-price";
-import { formatReais, priceInReaisSchema, reaisToCents } from "@/helpers/currency";
+import {
+  formatReais,
+  priceInReaisSchema,
+  reaisToCents,
+} from "@/helpers/currency";
 import { inClinicTimezone, isWeekDayInRange } from "@/helpers/time";
 import { actionErrorMessage } from "@/lib/action-errors";
 import { cn } from "@/lib/utils";
