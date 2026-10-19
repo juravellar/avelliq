@@ -26,6 +26,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 import { authClient } from "../../../lib/auth-client";
 
@@ -133,8 +134,8 @@ const LoginForm = ({ canResetPassword }: { canResetPassword: boolean }) => {
                     )}
                   </div>
                   <FormControl>
-                    <Input
-                      type="password"
+                    <PasswordInput
+                      autoComplete="current-password"
                       placeholder="Digite sua senha"
                       {...field}
                     />
