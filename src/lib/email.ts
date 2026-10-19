@@ -15,6 +15,7 @@ const escapeHtml = (value: string) =>
   );
 
 export async function sendEmail({
+  from = process.env.EMAIL_FROM,
   replyTo,
   ...message
 }: {
@@ -22,8 +23,12 @@ export async function sendEmail({
   subject: string;
   text: string;
   html: string;
+  // Defaults to EMAIL_FROM (the no-reply address).
+  from?: string;
   // Where "Reply" goes, e.g. the person who wrote to support.
   replyTo?: string;
+  // Threading headers of a reply (In-Reply-To, References).
+  headers?: Record<string, string>;
 }) {
   const response = await fetch(RESEND_API_URL, {
     method: "POST",
@@ -32,7 +37,7 @@ export async function sendEmail({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: process.env.EMAIL_FROM,
+      from,
       ...message,
       ...(replyTo ? { reply_to: replyTo } : {}),
     }),
@@ -59,6 +64,19 @@ export const resetPasswordEmail = (url: string) => ({
 <p><a href="${escapeHtml(url)}">Criar uma nova senha</a> (o link vale por 1 hora)</p>
 <p>Se você não pediu, ignore este email: sua senha continua a mesma.</p>`,
 });
+
+// An answer from the support inbox: the text typed, then the original quoted.
+export const supportReplyEmail = (answer: string, quoted: string) => {
+  const text = `${answer.trim()}${quoted}`;
+  return {
+    text,
+    html: `<p style="white-space:pre-wrap">${escapeHtml(answer.trim())}</p>${
+      quoted
+        ? `<blockquote style="margin:16px 0 0;padding-left:12px;border-left:3px solid #ccc;color:#555;white-space:pre-wrap">${escapeHtml(quoted.trim())}</blockquote>`
+        : ""
+    }`,
+  };
+};
 
 export interface SupportRequestEmail {
   topic: string;
