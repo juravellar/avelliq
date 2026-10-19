@@ -2,6 +2,10 @@
 // match.ts); write keywords the way people ask, without accents. Links point
 // to pages of the app, which send signed-out visitors to the sign-in page.
 
+import { FREE_PERIOD_MONTHS } from "@/lib/free-period";
+
+import { clinicsPerPlan, plansSummary } from "./plan-text";
+
 export interface SupportLink {
   label: string;
   href: string;
@@ -35,8 +39,7 @@ export const SUPPORT_ANSWERS: SupportAnswer[] = [
       "profissional",
       "assinar",
     ],
-    answer:
-      "São três planos:\n• Free: grátis por 3 meses, com 1 clínica, 1 médico, até 20 pacientes e 40 agendamentos por mês.\n• Essencial: até 2 clínicas e, em cada uma, até 5 médicos, 100 pacientes e 200 agendamentos por mês.\n• Profissional: clínicas, médicos, pacientes e agendamentos ilimitados, com suporte prioritário.\nOs valores atualizados ficam na página de assinatura.",
+    answer: plansSummary(),
     links: [{ label: "Ver planos", href: "/assinatura" }],
     popular: true,
   },
@@ -54,8 +57,7 @@ export const SUPPORT_ANSWERS: SupportAnswer[] = [
       "tres meses",
       "periodo de teste",
     ],
-    answer:
-      "Toda conta começa no plano Free, gratuito por 3 meses contados a partir da criação da primeira clínica, sem cartão de crédito. Depois desse prazo a conta fica só leitura: você continua vendo todos os dados, mas para cadastrar e editar é preciso assinar um plano.",
+    answer: `Toda conta começa no plano Free, gratuito por ${FREE_PERIOD_MONTHS} meses contados a partir da criação da primeira clínica, sem cartão de crédito. Depois desse prazo a conta fica só leitura: você continua vendo todos os dados, mas para cadastrar e editar é preciso assinar um plano.`,
     links: [{ label: "Ver planos", href: "/assinatura" }],
     popular: true,
   },
@@ -369,8 +371,7 @@ export const SUPPORT_ANSWERS: SupportAnswer[] = [
       "mudar de clinica",
       "filial",
     ],
-    answer:
-      'Sim, conforme o plano (Free: 1, Essencial: 2, Profissional: ilimitadas). No menu do rodapé, à esquerda, use "Nova clínica" para criar e clique no nome de uma clínica para trocar. Cada clínica tem seus próprios médicos, pacientes e agendamentos.',
+    answer: `Sim, conforme o plano (${clinicsPerPlan()}). No menu do rodapé, à esquerda, use "Nova clínica" para criar e clique no nome de uma clínica para trocar. Cada clínica tem seus próprios médicos, pacientes e agendamentos.`,
     links: [{ label: "Minhas clínicas", href: "/clinicas" }],
   },
   {
@@ -459,7 +460,7 @@ export const SUPPORT_ANSWERS: SupportAnswer[] = [
       "verificar email",
     ],
     answer:
-      "Confira a caixa de spam e as promoções. O e-mail vem de nao-responda@mail.avelliq.com.br. Ao tentar entrar com uma conta ainda não confirmada, um novo link é enviado.",
+      "Confira a caixa de spam e as promoções, procurando por e-mails do Avelliq. Ao tentar entrar com uma conta ainda não confirmada, um novo link é enviado.",
   },
   {
     id: "google",

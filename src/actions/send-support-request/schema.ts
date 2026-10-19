@@ -25,15 +25,21 @@ export const supportRequestSchema = z.object({
     .min(10, { message: "Conte um pouco mais (pelo menos 10 caracteres)." })
     .max(2000, { message: "Use até 2.000 caracteres." }),
   name: z.string().trim().max(120).optional(),
+  // Trimmed before choosing between "empty" and "an e-mail", so a field with
+  // only spaces counts as empty instead of an invalid e-mail.
   email: z
-    .union([
-      z.string().trim().email({ message: "E-mail inválido." }),
-      z.literal(""),
-    ])
+    .string()
+    .trim()
+    .pipe(
+      z.union([
+        z.literal(""),
+        z.string().email({ message: "E-mail inválido." }),
+      ]),
+    )
     .optional(),
   page: z.string().max(200).optional(),
   // Hidden from people; bots that fill every field reveal themselves.
-  website: z.string().max(200).optional(),
+  leaveBlank: z.string().max(200).optional(),
 });
 
 export type SupportRequest = z.infer<typeof supportRequestSchema>;

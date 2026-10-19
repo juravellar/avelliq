@@ -143,7 +143,8 @@ export function AppSidebar({
     });
   };
 
-  const isActive = (itemUrl: string) => pathname === itemUrl;
+  const isActive = (itemUrl: string) =>
+    pathname === itemUrl || pathname.startsWith(`${itemUrl}/`);
 
   const toggleOthersSection = () => {
     setIsOthersExpanded(!isOthersExpanded);

@@ -38,6 +38,7 @@ describe("replySupportEmail", () => {
     mocks.audit.mockResolvedValue(undefined);
     vi.stubEnv("SUPPORT_ADMIN_EMAILS", "equipe@avelliq.com");
     vi.stubEnv("SUPPORT_EMAIL", "sac@mail.avelliq.com.br");
+    vi.stubEnv("EMAIL_FROM", "Avelliq <nao-responda@mail.avelliq.com.br>");
     mocks.getSession.mockResolvedValue({ user: admin });
     mocks.getReceivedEmail.mockResolvedValue({
       id: ID,
@@ -47,7 +48,7 @@ describe("replySupportEmail", () => {
       created_at: "2026-10-19T15:00:00Z",
       reply_to: ["ana@clinica.com"],
       html: null,
-      text: "Não consigo mudar o horário.",
+      text: "Nome: Ana\nE-mail: ana@clinica.com\nConta: user_1 · Plano: Free · Clínica: Centro\n\nNão consigo mudar o horário.",
       message_id: "<original@mail>",
     });
   });
@@ -71,6 +72,8 @@ describe("replySupportEmail", () => {
     });
     expect(sent.text).toContain("Olá, Ana!");
     expect(sent.text).toContain("> Não consigo mudar o horário.");
+    expect(sent.text).toContain("ana@clinica.com escreveu:");
+    expect(sent.text).not.toContain("user_1");
     expect(sent.text).toContain("19/10/2026 às 12:00");
     expect(mocks.audit).toHaveBeenCalledWith({
       userId: "owner",
@@ -106,6 +109,33 @@ describe("replySupportEmail", () => {
     expect(result?.serverError).toBe("Acesso negado.");
     expect(mocks.getReceivedEmail).not.toHaveBeenCalled();
     expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("doesn't answer Avelliq's own addresses", async () => {
+    mocks.getReceivedEmail.mockResolvedValue({
+      ...(await mocks.getReceivedEmail()),
+      from: "Avelliq <sac@mail.avelliq.com.br>",
+      reply_to: [],
+    });
+
+    const result = await replySupportEmail({ id: ID, message: "Olá!" });
+
+    expect(result?.serverError).toMatch(/próprio Avelliq/);
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("keeps the thread's earlier references", async () => {
+    mocks.getReceivedEmail.mockResolvedValue({
+      ...(await mocks.getReceivedEmail()),
+      headers: { references: "<first@mail>" },
+    });
+
+    await replySupportEmail({ id: ID, message: "Olá de novo!" });
+
+    expect(mocks.sendEmail.mock.calls[0][0].headers).toEqual({
+      "In-Reply-To": "<original@mail>",
+      References: "<first@mail> <original@mail>",
+    });
   });
 
   it("refuses an id that isn't a received e-mail id", async () => {

@@ -13,9 +13,11 @@ import { isSupportAdmin, isSupportOwner } from "@/lib/support/admin";
 import { getReceivedEmail, isInboxConfigured } from "@/lib/support/inbox";
 import {
   isForSupport,
+  isOwnAddress,
   quotedOriginal,
   replySubject,
   replyTarget,
+  threadHeaders,
 } from "@/lib/support/inbox-helpers";
 
 // Answers a received e-mail from the support address, in the same thread.
@@ -49,6 +51,11 @@ export const replySupportEmail = actionClient
       throw new UserFacingError("Acesso negado.");
     }
     const to = replyTarget(original);
+    if (isOwnAddress(to)) {
+      throw new UserFacingError(
+        "Este e-mail veio de um endereço do próprio Avelliq, então não há para quem responder.",
+      );
+    }
     const receivedAt = inClinicTimezone(new Date(original.created_at)).format(
       "DD/MM/YYYY [às] HH:mm",
     );
@@ -60,12 +67,7 @@ export const replySupportEmail = actionClient
         parsedInput.message,
         quotedOriginal(original, receivedAt),
       ),
-      headers: original.message_id
-        ? {
-            "In-Reply-To": original.message_id,
-            References: original.message_id,
-          }
-        : undefined,
+      headers: threadHeaders(original),
     });
     // Which admin answered which e-mail; the reply itself already went out,
     // so a failure here is only logged.

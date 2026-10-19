@@ -14,7 +14,7 @@ describe("Resend receiving client", () => {
     vi.stubEnv("RESEND_RECEIVING_API_KEY", "re_full");
     const fetchMock = respond(200, { data: [], has_more: false });
 
-    await listReceivedEmails("4ef9a417-02e9-4d39-ad75-9611e0fcc33c");
+    await listReceivedEmails({ after: "4ef9a417-02e9-4d39-ad75-9611e0fcc33c" });
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toBe(
@@ -22,6 +22,19 @@ describe("Resend receiving client", () => {
     );
     expect((init?.headers as Record<string, string>).Authorization).toBe(
       "Bearer re_full",
+    );
+  });
+
+  it("asks for the newer page before a given id", async () => {
+    vi.stubEnv("RESEND_RECEIVING_API_KEY", "re_full");
+    const fetchMock = respond(200, { data: [], has_more: false });
+
+    await listReceivedEmails({
+      before: "4ef9a417-02e9-4d39-ad75-9611e0fcc33c",
+    });
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "https://api.resend.com/emails/receiving?limit=30&before=4ef9a417-02e9-4d39-ad75-9611e0fcc33c",
     );
   });
 
