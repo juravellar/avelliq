@@ -8,8 +8,8 @@ import { useState } from "react";
 import { setAccountPassword } from "@/actions/set-account-password";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { actionErrorMessage } from "@/lib/action-errors";
 import { authClient } from "@/lib/auth-client";
 import { passwordMessage } from "@/lib/password-messages";
@@ -101,9 +101,8 @@ export function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
           {hasPassword && (
             <div className="space-y-1.5">
               <Label htmlFor="current-password">Senha atual</Label>
-              <Input
+              <PasswordInput
                 id="current-password"
-                type="password"
                 autoComplete="current-password"
                 value={current}
                 onChange={(event) => setCurrent(event.target.value)}
@@ -115,9 +114,8 @@ export function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
             <Label htmlFor="new-password">
               {hasPassword ? "Nova senha" : "Senha"}
             </Label>
-            <Input
+            <PasswordInput
               id="new-password"
-              type="password"
               autoComplete="new-password"
               minLength={8}
               maxLength={128}
@@ -128,9 +126,8 @@ export function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="repeat-password">Repita a senha</Label>
-            <Input
+            <PasswordInput
               id="repeat-password"
-              type="password"
               autoComplete="new-password"
               maxLength={128}
               value={repeat}
