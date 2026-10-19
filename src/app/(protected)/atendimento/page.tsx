@@ -21,6 +21,7 @@ import {
   listReceivedEmails,
 } from "@/lib/support/inbox";
 import {
+  inboxPageLinks,
   isHelpFormMessage,
   nameOf,
   type ReceivedEmailSummary,
@@ -30,7 +31,7 @@ import {
 import { InboxProblem } from "./_components/inbox-states";
 
 interface InboxPageProps {
-  searchParams: Promise<{ depois?: string }>;
+  searchParams: Promise<{ depois?: string; antes?: string }>;
 }
 
 // Who wrote: for the help form, the person in Reply-To; otherwise the sender.
@@ -45,19 +46,25 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
   if (!isSupportAdmin(session?.user)) {
     notFound();
   }
-  const { depois } = await searchParams;
+  const { depois, antes } = await searchParams;
   const after = depois && isReceivedEmailId(depois) ? depois : undefined;
+  const before =
+    !after && antes && isReceivedEmailId(antes) ? antes : undefined;
 
   let page: Awaited<ReturnType<typeof listReceivedEmails>> | null = null;
   let error: unknown;
   if (isInboxConfigured()) {
     try {
-      page = await listReceivedEmails(after);
+      page = await listReceivedEmails({ after, before });
     } catch (caught) {
       error = caught;
       console.error("Support inbox not loaded:", (caught as Error).message);
     }
   }
+
+  const { newer, older } = page
+    ? inboxPageLinks(page, { after, before })
+    : { newer: null, older: null };
 
   return (
     <PageContainer>
@@ -79,7 +86,9 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
         ) : page.data.length === 0 ? (
           <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-lg border p-10 text-center text-sm">
             <Mail className="h-8 w-8" aria-hidden />
-            Nenhum e-mail {after ? "mais antigo" : "recebido ainda"}.
+            Nenhum e-mail{" "}
+            {after ? "mais antigo" : before ? "mais recente" : "recebido ainda"}
+            .
           </div>
         ) : (
           <ul className="divide-y rounded-lg border">
@@ -123,23 +132,20 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
             ))}
           </ul>
         )}
-        {page && (after || page.has_more) && (
+        {page && (newer || older) && (
           <div className="flex justify-between">
-            {after ? (
+            {newer ? (
               <Button variant="outline" asChild>
-                <Link href="/atendimento" prefetch={false}>
+                <Link href={newer} prefetch={false}>
                   Mais recentes
                 </Link>
               </Button>
             ) : (
               <span />
             )}
-            {page.has_more && (
+            {older && (
               <Button variant="outline" asChild>
-                <Link
-                  href={`/atendimento?depois=${page.data.at(-1)!.id}`}
-                  prefetch={false}
-                >
+                <Link href={older} prefetch={false}>
                   Mais antigos
                 </Link>
               </Button>

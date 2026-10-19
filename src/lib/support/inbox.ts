@@ -54,11 +54,16 @@ const call = async <T>(path: string): Promise<T> => {
 
 export const PAGE_SIZE = 30;
 
-// Newest first; `after` is the last id of the previous page.
-export const listReceivedEmails = (after?: string) =>
-  call<{ data: ReceivedEmailSummary[]; has_more: boolean }>(
-    `?limit=${PAGE_SIZE}${after ? `&after=${encodeURIComponent(after)}` : ""}`,
-  );
+// Newest first. `after` is the last id of a page, for the older page after
+// it; `before` is the first id of a page, for the newer page before it.
+export const listReceivedEmails = (
+  cursor: { after?: string; before?: string } = {},
+) => {
+  const query = new URLSearchParams({ limit: String(PAGE_SIZE) });
+  if (cursor.after) query.set("after", cursor.after);
+  else if (cursor.before) query.set("before", cursor.before);
+  return call<{ data: ReceivedEmailSummary[]; has_more: boolean }>(`?${query}`);
+};
 
 export const getReceivedEmail = (id: string) =>
   call<ReceivedEmail>(`/${encodeURIComponent(id)}`);

@@ -140,7 +140,8 @@ export function AppSidebar({
     });
   };
 
-  const isActive = (itemUrl: string) => pathname === itemUrl;
+  const isActive = (itemUrl: string) =>
+    pathname === itemUrl || pathname.startsWith(`${itemUrl}/`);
 
   const toggleOthersSection = () => {
     setIsOthersExpanded(!isOthersExpanded);
@@ -207,7 +208,7 @@ export function AppSidebar({
         <Separator />
         <SidebarGroup>
           <SidebarGroupLabel
-            className="hover:bg-primary/5 hover:text-primary -mx-2 -my-1 flex cursor-pointer items-center justify-between rounded-md px-2 py-1 mb-0.5"
+            className="hover:bg-primary/5 hover:text-primary -mx-2 -my-1 mb-0.5 flex cursor-pointer items-center justify-between rounded-md px-2 py-1"
             onClick={toggleOthersSection}
           >
             <span>Outros</span>
@@ -223,7 +224,13 @@ export function AppSidebar({
                 {[
                   ...otherItems,
                   ...(isSupportAdmin
-                    ? [{ title: "Atendimento", url: "/atendimento", icon: Inbox }]
+                    ? [
+                        {
+                          title: "Atendimento",
+                          url: "/atendimento",
+                          icon: Inbox,
+                        },
+                      ]
                     : []),
                 ].map((item) => (
                   <SidebarMenuItem key={item.title}>
@@ -264,9 +271,7 @@ export function AppSidebar({
                     )}
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="truncate text-sm">
-                      {user.clinic?.name}
-                    </p>
+                    <p className="truncate text-sm">{user.clinic?.name}</p>
                     <p className="text-muted-foreground truncate text-sm">
                       {user.email}
                     </p>
@@ -287,7 +292,9 @@ export function AppSidebar({
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        clinic.id === activeClinicId ? "opacity-100" : "opacity-0",
+                        clinic.id === activeClinicId
+                          ? "opacity-100"
+                          : "opacity-0",
                       )}
                     />
                     <span className="flex-1 truncate">{clinic.name}</span>
@@ -364,7 +371,9 @@ export function AppSidebar({
               onOpenChange={setClinicLimitOpen}
               kind="limit"
               usageText={
-                clinicLimit ? `${clinics.length} de ${clinicLimit} clínicas` : null
+                clinicLimit
+                  ? `${clinics.length} de ${clinicLimit} clínicas`
+                  : null
               }
             />
           </SidebarMenuItem>

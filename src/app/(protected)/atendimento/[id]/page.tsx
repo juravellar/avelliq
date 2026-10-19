@@ -17,6 +17,7 @@ import {
 } from "@/lib/support/inbox";
 import {
   isHelpFormMessage,
+  isOwnAddress,
   type ReceivedEmail,
   replyTarget,
 } from "@/lib/support/inbox-helpers";
@@ -98,11 +99,18 @@ const ReceivedEmailPage = async ({
                 <EmailBody text={email.text} html={email.html} />
               </CardContent>
             </Card>
-            <ReplyForm
-              id={email.id}
-              to={replyTarget(email)}
-              from={process.env.SUPPORT_EMAIL ?? null}
-            />
+            {isOwnAddress(replyTarget(email)) ? (
+              <p className="text-muted-foreground rounded-lg border p-4 text-sm">
+                Este e-mail veio de um endereço do próprio Avelliq (
+                {replyTarget(email)}), então não há para quem responder.
+              </p>
+            ) : (
+              <ReplyForm
+                id={email.id}
+                to={replyTarget(email)}
+                from={process.env.SUPPORT_EMAIL ?? null}
+              />
+            )}
           </>
         )}
       </PageContent>
