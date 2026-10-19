@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/page-container";
 import { inClinicTimezone } from "@/helpers/time";
 import { getServerSession } from "@/lib/server-session";
-import { isSupportAdmin } from "@/lib/support/admin";
+import { isSupportAdmin, isSupportOwner } from "@/lib/support/admin";
 import {
   isInboxConfigured,
   isReceivedEmailId,
@@ -22,6 +22,7 @@ import {
 } from "@/lib/support/inbox";
 import {
   inboxPageLinks,
+  isForSupport,
   isHelpFormMessage,
   nameOf,
   type ReceivedEmailSummary,
@@ -46,16 +47,23 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
   if (!isSupportAdmin(session?.user)) {
     notFound();
   }
+  // Main accounts see all the domain's mail; other admins only what was sent
+  // to the support addresses.
+  const seesAll = isSupportOwner(session?.user);
   const { depois, antes } = await searchParams;
   const after = depois && isReceivedEmailId(depois) ? depois : undefined;
   const before =
     !after && antes && isReceivedEmailId(antes) ? antes : undefined;
 
   let page: Awaited<ReturnType<typeof listReceivedEmails>> | null = null;
+  let emails: ReceivedEmailSummary[] = [];
   let error: unknown;
   if (isInboxConfigured()) {
     try {
       page = await listReceivedEmails({ after, before });
+      emails = seesAll
+        ? page.data
+        : page.data.filter((email) => isForSupport(email));
     } catch (caught) {
       error = caught;
       console.error("Support inbox not loaded:", (caught as Error).message);
@@ -83,16 +91,16 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
       <PageContent>
         {!page ? (
           <InboxProblem error={error} />
-        ) : page.data.length === 0 ? (
+        ) : emails.length === 0 ? (
           <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-lg border p-10 text-center text-sm">
             <Mail className="h-8 w-8" aria-hidden />
-            Nenhum e-mail{" "}
-            {after ? "mais antigo" : before ? "mais recente" : "recebido ainda"}
-            .
+            {page.data.length > 0
+              ? "Nenhum e-mail para o suporte nesta página."
+              : `Nenhum e-mail ${after ? "mais antigo" : before ? "mais recente" : "recebido ainda"}.`}
           </div>
         ) : (
           <ul className="divide-y rounded-lg border">
-            {page.data.map((email) => (
+            {emails.map((email) => (
               <li key={email.id}>
                 <Link
                   href={`/atendimento/${email.id}`}

@@ -436,12 +436,16 @@ export const SUPPORT_ANSWERS: SupportAnswer[] = [
       "alterar senha",
       "redefinir senha",
       "recuperar senha",
+      "criar senha",
       "nao consigo entrar",
       "login",
     ],
     answer:
-      'Na tela de entrada, clique em "Esqueci minha senha" e informe seu e-mail: enviamos um link (válido por 1 hora) para criar uma nova senha. O mesmo caminho serve para trocar a senha. Se o link não aparecer na tela de entrada, fale com a nossa equipe.',
-    links: [{ label: "Esqueci minha senha", href: "/esqueci-senha" }],
+      'Na tela de entrada, clique em "Esqueci minha senha" e informe seu e-mail: enviamos um link (válido por 1 hora) para criar uma nova senha. Já dentro do sistema, abra Minha conta (no menu do rodapé) para trocar a senha. Quem entra pelo Google também cria uma senha ali, para poder entrar com e-mail e senha.',
+    links: [
+      { label: "Esqueci minha senha", href: "/esqueci-senha" },
+      { label: "Minha conta", href: "/minha-conta" },
+    ],
     popular: true,
   },
   {

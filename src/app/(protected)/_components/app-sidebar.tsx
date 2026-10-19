@@ -12,6 +12,7 @@ import {
   LogOut,
   Plus,
   Settings,
+  ShieldCheck,
   Stethoscope,
   SunMoon,
   UserRound,
@@ -96,10 +97,12 @@ const otherItems = [
 export function AppSidebar({
   logoUrl,
   isSupportAdmin = false,
+  isSupportOwner = false,
 }: {
   logoUrl: string | null;
-  // Avelliq staff also see the support inbox.
+  // Avelliq staff also see the support inbox; owners also see every account.
   isSupportAdmin?: boolean;
+  isSupportOwner?: boolean;
 }) {
   const router = useRouter();
   const user = useSessionUser();
@@ -231,6 +234,9 @@ export function AppSidebar({
                           icon: Inbox,
                         },
                       ]
+                    : []),
+                  ...(isSupportOwner
+                    ? [{ title: "Contas", url: "/contas", icon: ShieldCheck }]
                     : []),
                 ].map((item) => (
                   <SidebarMenuItem key={item.title}>

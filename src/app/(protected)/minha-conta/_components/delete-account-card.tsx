@@ -47,7 +47,9 @@ export function DeleteAccountCard({
   return (
     <Card className="border-destructive/30">
       <CardHeader>
-        <CardTitle className="text-base text-destructive">Excluir conta</CardTitle>
+        <CardTitle className="text-destructive text-base">
+          Excluir conta
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">
@@ -86,7 +88,7 @@ export function DeleteAccountCard({
                 onChange={(event) => setTypedEmail(event.target.value)}
               />
               {error && (
-                <p role="alert" className="text-sm text-destructive">
+                <p role="alert" className="text-destructive text-sm">
                   {error}
                 </p>
               )}

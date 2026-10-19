@@ -80,6 +80,7 @@ export const auth = betterAuth({
           clinicChoiceMadeAt: userData?.clinicChoiceMadeAt ?? null,
           clinicChoiceChangedAt: userData?.clinicChoiceChangedAt ?? null,
           termsVersion: userData?.termsVersion ?? null,
+          supportAdmin: userData?.supportAdmin ?? false,
           branding: sessionBranding(memberships, access.active?.id),
         },
         session,

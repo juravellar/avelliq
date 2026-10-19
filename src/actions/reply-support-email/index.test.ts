@@ -4,7 +4,9 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   sendEmail: vi.fn(),
   getReceivedEmail: vi.fn(),
+  audit: vi.fn(),
 }));
+vi.mock("@/lib/audit", () => ({ recordAudit: mocks.audit }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession: mocks.getSession } },
@@ -22,13 +24,21 @@ vi.mock("@/lib/support/inbox", () => ({
 import { replySupportEmail } from ".";
 
 const ID = "4ef9a417-02e9-4d39-ad75-9611e0fcc33c";
-const admin = { email: "equipe@avelliq.com", emailVerified: true };
+const admin = { id: "owner", email: "equipe@avelliq.com", emailVerified: true };
+const delegated = {
+  id: "staff",
+  email: "staff@x.com",
+  emailVerified: true,
+  supportAdmin: true,
+};
 
 describe("replySupportEmail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.audit.mockResolvedValue(undefined);
     vi.stubEnv("SUPPORT_ADMIN_EMAILS", "equipe@avelliq.com");
     vi.stubEnv("SUPPORT_EMAIL", "sac@mail.avelliq.com.br");
+    vi.stubEnv("EMAIL_FROM", "Avelliq <nao-responda@mail.avelliq.com.br>");
     mocks.getSession.mockResolvedValue({ user: admin });
     mocks.getReceivedEmail.mockResolvedValue({
       id: ID,
@@ -62,7 +72,31 @@ describe("replySupportEmail", () => {
     });
     expect(sent.text).toContain("Olá, Ana!");
     expect(sent.text).toContain("> Não consigo mudar o horário.");
+    expect(sent.text).toContain("ana@clinica.com escreveu:");
+    expect(sent.text).not.toContain("user_1");
     expect(sent.text).toContain("19/10/2026 às 12:00");
+    expect(mocks.audit).toHaveBeenCalledWith({
+      userId: "owner",
+      clinicId: null,
+      action: "support.replied",
+      entityId: ID,
+    });
+  });
+
+  it("lets other admins answer only mail sent to the support addresses", async () => {
+    mocks.getSession.mockResolvedValue({ user: delegated });
+    expect(
+      (await replySupportEmail({ id: ID, message: "Olá, Ana!" }))?.data,
+    ).toEqual({ sentTo: "ana@clinica.com" });
+
+    mocks.sendEmail.mockClear();
+    mocks.getReceivedEmail.mockResolvedValue({
+      ...(await mocks.getReceivedEmail.mock.results[0].value),
+      to: ["admin@mail.avelliq.com.br"],
+    });
+    const result = await replySupportEmail({ id: ID, message: "Olá!" });
+    expect(result?.serverError).toBe("Acesso negado.");
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
   it("refuses anyone who isn't a support admin", async () => {
