@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import {
@@ -12,16 +12,29 @@ import {
 } from "@/components/ui/page-container";
 import { db } from "@/db";
 import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
+import {
+  clinicDayRange,
+  clinicToday,
+  inClinicTimezone,
+  isCalendarDay,
+} from "@/helpers/time";
 import { createGate } from "@/lib/create-gate";
 import { writeBlock } from "@/lib/free-period";
 import { getPlanUsage } from "@/lib/plan-usage";
 import { getServerSession } from "@/lib/server-session";
 
 import AddAppointmentButton from "./_components/add-appointments-button";
+import { AppointmentsCalendar } from "./_components/appointments-calendar";
 import { AppointmentsTable } from "./_components/appointments-table";
+import { calendarSlots, weekDays, weekStart } from "./_components/calendar";
 import { PATIENT_OPTION_COLUMNS } from "./_components/patient-option";
+import { type AppointmentsView, ViewToggle } from "./_components/view-toggle";
 
-const AppointmentsPage = async () => {
+interface AppointmentsPageProps {
+  searchParams: Promise<{ visao?: string; semana?: string; medico?: string }>;
+}
+
+const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
   const session = await getServerSession();
 
   if (!session?.user) {
@@ -33,6 +46,17 @@ const AppointmentsPage = async () => {
   }
 
   const clinicId = session.user.clinic.id;
+  const params = await searchParams;
+  const view: AppointmentsView =
+    params.visao === "calendario" ? "calendario" : "lista";
+  // The calendar shows one week (Monday to Sunday) and loads only that week.
+  const days = weekDays(
+    weekStart(isCalendarDay(params.semana) ? params.semana : clinicToday()),
+  );
+  const weekRange = {
+    start: clinicDayRange(days[0]).start,
+    end: clinicDayRange(days[6]).end,
+  };
 
   const [patients, doctors, appointments] = await Promise.all([
     db.query.patientsTable.findMany({
@@ -43,7 +67,14 @@ const AppointmentsPage = async () => {
       where: eq(doctorsTable.clinicId, clinicId),
     }),
     db.query.appointmentsTable.findMany({
-      where: eq(appointmentsTable.clinicId, clinicId),
+      where:
+        view === "calendario"
+          ? and(
+              eq(appointmentsTable.clinicId, clinicId),
+              gte(appointmentsTable.date, weekRange.start),
+              lt(appointmentsTable.date, weekRange.end),
+            )
+          : eq(appointmentsTable.clinicId, clinicId),
       with: {
         patient: { columns: PATIENT_OPTION_COLUMNS },
         doctor: true,
@@ -57,6 +88,17 @@ const AppointmentsPage = async () => {
     session.user.clinics.length,
   );
   const block = writeBlock(session.user);
+  const gate = createGate(
+    usage.appointmentsPerMonth,
+    block,
+    { one: "agendamento", many: "agendamentos" },
+    " neste mês",
+  );
+  // An unknown doctor in the URL (deleted, or from another clinic) shows all.
+  const doctorId = doctors.some(({ id }) => id === params.medico)
+    ? params.medico!
+    : null;
+  const now = inClinicTimezone(new Date());
   return (
     <PageContainer>
       <PageHeader>
@@ -67,24 +109,38 @@ const AppointmentsPage = async () => {
           </PageDescription>
         </PageHeaderContent>
         <PageActions>
+          <ViewToggle view={view} />
           <AddAppointmentButton
             patients={patients}
             doctors={doctors}
-            gate={createGate(
-              usage.appointmentsPerMonth,
-              block,
-              { one: "agendamento", many: "agendamentos" },
-              " neste mês",
-            )}
+            gate={gate}
           />
         </PageActions>
       </PageHeader>
       <PageContent>
-        <AppointmentsTable
-          appointments={appointments}
-          doctors={doctors}
-          patients={patients}
-        />
+        {view === "calendario" ? (
+          <AppointmentsCalendar
+            days={days}
+            slots={calendarSlots(
+              doctorId ? doctors.filter(({ id }) => id === doctorId) : doctors,
+            )}
+            appointments={appointments}
+            doctors={doctors}
+            patients={patients}
+            gate={gate}
+            doctorId={doctorId}
+            now={{
+              day: now.format("YYYY-MM-DD"),
+              time: now.format("HH:mm:ss"),
+            }}
+          />
+        ) : (
+          <AppointmentsTable
+            appointments={appointments}
+            doctors={doctors}
+            patients={patients}
+          />
+        )}
       </PageContent>
     </PageContainer>
   );

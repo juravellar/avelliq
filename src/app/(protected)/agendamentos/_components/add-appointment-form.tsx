@@ -7,7 +7,7 @@ import { ptBR } from "date-fns/locale";
 import dayjs from "dayjs";
 import { CalendarIcon } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -74,6 +74,9 @@ interface UpsertAppointmentFormProps {
   patients: PatientOption[];
   doctors: (typeof doctorsTable.$inferSelect)[];
   appointment?: typeof appointmentsTable.$inferSelect;
+  // A new appointment started from a calendar slot: its day (YYYY-MM-DD),
+  // time (HH:mm:ss) and, when the calendar is filtered, its doctor.
+  defaults?: { date: string; time: string; doctorId?: string };
   onSuccess?: () => void;
 }
 
@@ -119,21 +122,38 @@ const UpsertAppointmentForm = ({
   doctors,
   onSuccess,
   isOpen,
+  defaults,
 }: UpsertAppointmentFormProps) => {
+  const defaultDate = defaults?.date;
+  const defaultTime = defaults?.time;
+  const defaultDoctorId = defaults?.doctorId;
+  const initialValues = useCallback((): z.infer<typeof formSchema> => {
+    if (appointment) {
+      return {
+        patientId: appointment.patientId,
+        doctorId: appointment.doctorId,
+        appointmentPrice: appointment.appointmentPriceInCents / 100,
+        date: appointment.date,
+        time: inClinicTimezone(appointment.date).format("HH:mm:ss"),
+      };
+    }
+    const doctor = doctors.find(({ id }) => id === defaultDoctorId);
+    return {
+      patientId: "",
+      doctorId: doctor?.id ?? "",
+      appointmentPrice: doctor ? doctor.appointmentPriceInCents / 100 : 0,
+      // The date picker works with local midnight of the chosen day.
+      date: defaultDate
+        ? dayjs(defaultDate).toDate()
+        : (undefined as unknown as Date),
+      time: defaultTime ?? "",
+    };
+  }, [appointment, doctors, defaultDate, defaultTime, defaultDoctorId]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     shouldUnregister: true,
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      patientId: appointment?.patientId ?? "",
-      doctorId: appointment?.doctorId ?? "",
-      appointmentPrice: appointment?.appointmentPriceInCents
-        ? appointment.appointmentPriceInCents / 100
-        : 0,
-      date: appointment?.date ?? undefined,
-      time: appointment
-        ? inClinicTimezone(appointment.date).format("HH:mm:ss")
-        : "",
-    },
+    defaultValues: initialValues(),
   });
 
   // Once the user types a price, picking another doctor keeps it instead of
@@ -175,19 +195,9 @@ const UpsertAppointmentForm = ({
   useEffect(() => {
     if (isOpen) {
       setPriceEdited(false);
-      form.reset({
-        patientId: appointment?.patientId ?? "",
-        doctorId: appointment?.doctorId ?? "",
-        appointmentPrice: appointment?.appointmentPriceInCents
-          ? appointment.appointmentPriceInCents / 100
-          : 0,
-        date: appointment?.date ?? undefined,
-        time: appointment
-          ? inClinicTimezone(appointment.date).format("HH:mm:ss")
-          : "",
-      });
+      form.reset(initialValues());
     }
-  }, [isOpen, form, appointment]);
+  }, [isOpen, form, initialValues]);
 
   const upsertAppointmentAction = useAction(upsertAppointment, {
     onSuccess: () => {
@@ -364,8 +374,10 @@ const UpsertAppointmentForm = ({
                       mode="single"
                       selected={field.value}
                       onSelect={field.onChange}
+                      // Days before today; today itself stays bookable.
                       disabled={(date) =>
-                        date < new Date() || !isDateAvailable(date)
+                        dayjs(date).isBefore(dayjs(), "day") ||
+                        !isDateAvailable(date)
                       }
                       autoFocus
                       locale={ptBR}

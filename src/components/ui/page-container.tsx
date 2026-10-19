@@ -27,7 +27,12 @@ export const PageDescription = ({
 };
 
 export const PageActions = ({ children }: { children: React.ReactNode }) => {
-  return <div className="flex flex-wrap items-center gap-2">{children}</div>;
+  // Keeps its width beside the title, which takes the rest of the row.
+  return (
+    <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
+      {children}
+    </div>
+  );
 };
 
 export const PageContent = ({ children }: { children: React.ReactNode }) => {
