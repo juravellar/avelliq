@@ -71,6 +71,13 @@
       "when": 1792178947443,
       "tag": "0009_clinic_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792432801339,
+      "tag": "0010_support_admins",
+      "breakpoints": true
     }
   ]
 }

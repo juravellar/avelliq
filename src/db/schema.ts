@@ -38,6 +38,9 @@ export const usersTable = pgTable("users", {
   // and when; a newer version asks again.
   termsAcceptedAt: timestamp("terms_accepted_at"),
   termsVersion: text("terms_version"),
+  // Avelliq staff who read and answer support mail, granted by an owner in
+  // the Contas page. Owners themselves come from SUPPORT_ADMIN_EMAILS.
+  supportAdmin: boolean("support_admin").notNull().default(false),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
 });

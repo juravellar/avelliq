@@ -1,3 +1,4 @@
+import { and, eq, isNotNull } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -11,11 +12,14 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@/components/ui/page-container";
+import { db } from "@/db";
+import { accountsTable } from "@/db/schema";
 import { inClinicTimezone } from "@/helpers/time";
 import { isPaidPlan } from "@/lib/plans";
 import { getServerSession } from "@/lib/server-session";
 
 import { DeleteAccountCard } from "./_components/delete-account-card";
+import { PasswordCard } from "./_components/password-card";
 
 // Works without a clinic: deleting the account or downloading the data must
 // not depend on having finished the sign-up.
@@ -25,6 +29,15 @@ const AccountPage = async () => {
     redirect("/entrar");
   }
   const { user } = session;
+  // Accounts created with Google have no password until they make one here.
+  const passwordAccount = await db.query.accountsTable.findFirst({
+    columns: { id: true },
+    where: and(
+      eq(accountsTable.userId, user.id),
+      eq(accountsTable.providerId, "credential"),
+      isNotNull(accountsTable.password),
+    ),
+  });
 
   return (
     <PageContainer>
@@ -32,7 +45,7 @@ const AccountPage = async () => {
         <PageHeaderContent>
           <PageTitle>Minha conta</PageTitle>
           <PageDescription>
-            Seus dados, sua privacidade e a exclusão da conta.
+            Seus dados, sua senha, sua privacidade e a exclusão da conta.
           </PageDescription>
         </PageHeaderContent>
       </PageHeader>
@@ -56,6 +69,8 @@ const AccountPage = async () => {
               </p>
             </CardContent>
           </Card>
+
+          <PasswordCard hasPassword={!!passwordAccount} />
 
           <Card>
             <CardHeader>

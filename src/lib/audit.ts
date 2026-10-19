@@ -15,7 +15,9 @@ export type AuditAction =
   | "appointment.updated"
   | "appointment.deleted"
   | "account.exported"
-  | "account.deleted";
+  | "account.deleted"
+  | "support-admin.granted"
+  | "support-admin.revoked";
 
 export interface AuditEntry {
   userId: string | null;
