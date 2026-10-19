@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import z from "zod";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,45 +25,26 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { ACCEPT_TERMS_HEADER, TERMS_VERSION } from "@/lib/terms";
 
 import { authClient } from "../../../lib/auth-client";
-
-const registerSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(1, { message: "Nome de usuário é obrigatório" }),
-  email: z
-    .string()
-    .trim()
-    .min(1, { message: "Email é obrigatório" })
-    .email({ message: "Email inválido" }),
-  // Not trimmed: spaces are part of the password.
-  password: z
-    .string()
-    .min(8, { message: "Senha deve ter no mínimo 8 caracteres" })
-    .max(128, { message: "Senha deve ter no máximo 128 caracteres" }),
-  acceptTerms: z.literal(true, {
-    errorMap: () => ({
-      message: "Aceite os Termos de Uso e a Política de Privacidade",
-    }),
-  }),
-});
+import { registerSchema, type RegisterValues } from "./register-schema";
 
 const SignUpForm = () => {
   const router = useRouter();
-  const form = useForm<z.infer<typeof registerSchema>>({
+  const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       username: "",
       email: "",
       password: "",
+      confirmPassword: "",
       acceptTerms: false as unknown as true,
     },
   });
 
-  async function onSubmit(values: z.infer<typeof registerSchema>) {
+  async function onSubmit(values: RegisterValues) {
     await authClient.signUp.email(
       {
         email: values.email,
@@ -104,7 +84,10 @@ const SignUpForm = () => {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <CardHeader>
             <CardTitle>Criar conta</CardTitle>
-            <CardDescription>Crie uma conta para continuar.</CardDescription>
+            {/* The side panel with this offer is hidden on phones. */}
+            <CardDescription>
+              Grátis por 3 meses no plano Free, sem cartão de crédito.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <FormField
@@ -147,9 +130,26 @@ const SignUpForm = () => {
                 <FormItem>
                   <FormLabel>Senha</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Digite sua senha"
+                    <PasswordInput
+                      autoComplete="new-password"
+                      placeholder="Mínimo de 8 caracteres"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Repita a senha</FormLabel>
+                  <FormControl>
+                    <PasswordInput
+                      autoComplete="new-password"
+                      placeholder="Digite a senha de novo"
                       {...field}
                     />
                   </FormControl>
