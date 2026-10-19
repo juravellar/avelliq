@@ -88,21 +88,27 @@ export const auth = betterAuth({
   ],
   user: {
     modelName: "usersTable",
+    // input: false on every field: Better Auth otherwise accepts them from
+    // the browser at sign-up and in update-user, and anyone could give
+    // themselves a paid plan. Only the Stripe webhook and checkout set them.
     additionalFields: {
       stripeCustomerId: {
         type: "string",
         fieldName: "stripeCustomerId",
         required: false,
+        input: false,
       },
       stripeSubscriptionId: {
         type: "string",
         fieldName: "stripeSubscriptionId",
         required: false,
+        input: false,
       },
       plan: {
         type: "string",
         fieldName: "plan",
         required: false,
+        input: false,
       },
       termsAcceptedAt: {
         type: "date",
