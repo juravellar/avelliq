@@ -41,6 +41,9 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-avelliq: var(--avelliq);
+  --color-avelliq-foreground: var(--avelliq-foreground);
+  --color-avelliq-muted: var(--avelliq-muted);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
@@ -73,6 +76,11 @@
   --popover-foreground: oklch(0.141 0.005 285.823);
   --primary: oklch(0.623 0.214 259.815);
   --primary-foreground: oklch(0.97 0.014 254.604);
+  /* Avelliq's own blue. Unlike --primary, a clinic's brand color never
+     replaces it: Avelliq's support speaks as Avelliq. */
+  --avelliq: oklch(0.623 0.214 259.815);
+  --avelliq-foreground: oklch(0.97 0.014 254.604);
+  --avelliq-muted: oklch(0.97 0.014 254.604);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.967 0.001 286.375);
@@ -117,6 +125,9 @@
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.546 0.245 262.881);
   --primary-foreground: oklch(0.97 0.014 254.604);
+  --avelliq: oklch(0.546 0.245 262.881);
+  --avelliq-foreground: oklch(0.97 0.014 254.604);
+  --avelliq-muted: oklch(0.282 0.091 267.94);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
