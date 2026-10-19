@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 import { isEmailConfigured, sendEmail, supportRequestEmail } from "@/lib/email";
 import { actionClient } from "@/lib/next-safe-action";
 import { resolvePlan } from "@/lib/plans";
-import { allowSupportRequest } from "@/lib/support/rate-limit";
+import { senderKey, takeSupportSlot } from "@/lib/support/rate-limit";
 
 import { SUPPORT_TOPICS, supportRequestSchema } from "./schema";
 
@@ -21,7 +21,7 @@ const writeTo = () =>
 export const sendSupportRequest = actionClient
   .schema(supportRequestSchema)
   .action(async ({ parsedInput }) => {
-    if (parsedInput.website) {
+    if (parsedInput.leaveBlank) {
       // Looks sent to the bot; nothing goes out.
       return { sent: true };
     }
@@ -46,11 +46,8 @@ export const sendSupportRequest = actionClient
       );
     }
 
-    const sender =
-      user?.id ??
-      requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      "unknown";
-    if (!allowSupportRequest(sender)) {
+    const giveSlotBack = takeSupportSlot(senderKey(user?.id, requestHeaders));
+    if (!giveSlotBack) {
       throw new UserFacingError(
         `Você já enviou várias mensagens na última hora. Aguarde um pouco.${writeTo()}`,
       );
@@ -76,6 +73,7 @@ export const sendSupportRequest = actionClient
         }),
       });
     } catch (error) {
+      giveSlotBack();
       console.error("Support request not sent:", (error as Error).message);
       throw new UserFacingError(
         `Não foi possível enviar sua mensagem agora.${writeTo()}`,

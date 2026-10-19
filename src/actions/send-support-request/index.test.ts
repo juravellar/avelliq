@@ -76,7 +76,7 @@ describe("sendSupportRequest", () => {
   });
 
   it("pretends to send for bots that fill the hidden field", async () => {
-    const result = await sendSupportRequest({ ...request, website: "spam" });
+    const result = await sendSupportRequest({ ...request, leaveBlank: "spam" });
 
     expect(result?.data).toEqual({ sent: true });
     expect(mocks.sendEmail).not.toHaveBeenCalled();
@@ -111,6 +111,33 @@ describe("sendSupportRequest", () => {
 
     expect(result?.serverError).toContain("Não foi possível enviar");
     expect(result?.serverError).toContain("sac@mail.avelliq.com.br");
+  });
+
+  it("doesn't count messages that failed to send against the limit", async () => {
+    mocks.getSession.mockResolvedValue({
+      user: { id: "unlucky_user", name: "Ana", email: "a@a.com", plan: null },
+    });
+    mocks.sendEmail.mockRejectedValue(
+      new Error("Email provider responded 500"),
+    );
+    for (let i = 0; i < SUPPORT_LIMIT.max + 2; i++) {
+      await sendSupportRequest(request);
+    }
+    mocks.sendEmail.mockResolvedValue(undefined);
+
+    expect((await sendSupportRequest(request))?.data?.sent).toBe(true);
+  });
+
+  it("ignores an e-mail field with only spaces", async () => {
+    mocks.getSession.mockResolvedValue(null);
+    const result = await sendSupportRequest({
+      ...request,
+      name: "Bia",
+      email: "   ",
+    });
+
+    expect(result?.validationErrors).toBeUndefined();
+    expect(result?.serverError).toContain("nome e e-mail");
   });
 
   it("refuses a message that is too short", async () => {

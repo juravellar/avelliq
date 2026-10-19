@@ -85,7 +85,7 @@ Sistema de agendamento para clínicas médicas: cadastro de médicos com dias e 
    | `STRIPE_WEBHOOK_SECRET` | Segredo do webhook (veja a seção do Stripe abaixo) |
    | `NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL` | Link do portal do cliente do Stripe. No Stripe, configure o link de retorno do portal para `/assinatura` |
    | `SUPPORT_EMAIL` | E-mail de suporte e canal de privacidade, mostrado na Política de Privacidade, nos Termos e a quem precisa alterar as clínicas ativas antes dos 30 dias. Use um e-mail do domínio, não um pessoal |
-   | `SUPPORT_INBOX` | Caixa que recebe as mensagens do "Falar com a equipe" (opcional; sem ela, vão para `SUPPORT_EMAIL`). Pode ser um e-mail pessoal: aparece só para quem envia a resposta, nunca nas páginas. Exige `RESEND_API_KEY` e `EMAIL_FROM` |
+   | `SUPPORT_INBOX` | Caixa que recebe as mensagens do "Falar com a equipe" (opcional; sem ela, vão para `SUPPORT_EMAIL`, o recomendado). Nunca aparece nas páginas, mas um e-mail pessoal aqui tem dois efeitos: quem responder de lá mostra esse endereço ao cliente, e as mensagens não chegam à caixa do domínio recebida pelo Resend (a tela de Atendimento não as vê). Exige `RESEND_API_KEY` e `EMAIL_FROM` |
    | `RESEND_RECEIVING_API_KEY` | Chave do Resend com permissão **Full access**, usada só pela tela de Atendimento para ler os e-mails recebidos (a chave de envio, `RESEND_API_KEY`, pode continuar só com envio). Opcional |
    | `SUPPORT_ADMIN_EMAILS` | E-mails (separados por vírgula) das contas do Avelliq que veem a tela de Atendimento. A conta precisa ter o e-mail confirmado. Opcional |
    | `LEGAL_CNPJ` | CNPJ mostrado na Política de Privacidade e nos Termos (opcional). Fica fora do código porque o repositório é público |
