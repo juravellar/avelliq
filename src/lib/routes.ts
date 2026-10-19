@@ -10,6 +10,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/configuracoes-da-clinica": "Configurações da clínica",
   "/nova-clinica": "Nova clínica",
   "/minha-conta": "Minha conta",
+  "/atendimento": "Atendimento",
 };
 
 export const pageTitle = (pathname: string) => {

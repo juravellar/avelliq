@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { brandStylesheet, clinicLogoUrl } from "@/lib/branding";
 import { getServerSession } from "@/lib/server-session";
+import { isSupportAdmin } from "@/lib/support/admin";
 
 import { AccountStatusBanner } from "./_components/account-status-banner";
 import { AppBreadcrumb } from "./_components/app-breadcrumb";
@@ -32,7 +33,10 @@ export default async function Layout({ children }: { children: ReactNode }) {
     <SessionProvider user={session.user}>
       {brandCss && <style>{brandCss}</style>}
       <SidebarProvider>
-        <AppSidebar logoUrl={logoUrl} />
+        <AppSidebar
+          logoUrl={logoUrl}
+          isSupportAdmin={isSupportAdmin(session.user)}
+        />
         <main className="w-full min-w-0">
           <header className="bg-background flex h-10 items-center gap-4 border-b px-4">
             <SidebarTrigger />

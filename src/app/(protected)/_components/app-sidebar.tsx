@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Gem,
+  Inbox,
   LayoutDashboard,
   LogOut,
   Plus,
@@ -92,7 +93,14 @@ const otherItems = [
 ];
 
 // With a logo, the clinic's brand replaces Avelliq's at the top of the menu.
-export function AppSidebar({ logoUrl }: { logoUrl: string | null }) {
+export function AppSidebar({
+  logoUrl,
+  isSupportAdmin = false,
+}: {
+  logoUrl: string | null;
+  // Avelliq staff also see the support inbox.
+  isSupportAdmin?: boolean;
+}) {
   const router = useRouter();
   const user = useSessionUser();
   const clinics = user.clinics;
@@ -212,7 +220,12 @@ export function AppSidebar({ logoUrl }: { logoUrl: string | null }) {
           {isOthersExpanded && (
             <SidebarGroupContent>
               <SidebarMenu>
-                {otherItems.map((item) => (
+                {[
+                  ...otherItems,
+                  ...(isSupportAdmin
+                    ? [{ title: "Atendimento", url: "/atendimento", icon: Inbox }]
+                    : []),
+                ].map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild

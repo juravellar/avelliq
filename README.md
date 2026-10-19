@@ -20,6 +20,7 @@ Sistema de agendamento para clínicas médicas: cadastro de médicos com dias e 
 - **Dashboard:** faturamento, número de consultas, médicos e especialidades mais procurados, e os agendamentos do dia.
 - **Marca da clínica (white label):** em Configurações da clínica, cada clínica envia o próprio logo (PNG, JPG ou WebP, reduzido para 128 px e guardado no banco) e escolhe a cor principal. O menu passa a mostrar a marca da clínica e os botões usam a cor dela, com o texto em branco ou preto conforme o contraste.
 - **Tema claro e escuro:** segue o tema do sistema ou a escolha feita no menu do rodapé (Tema).
+- **Atendimento (equipe do Avelliq):** em `/atendimento`, visível só para os e-mails em `SUPPORT_ADMIN_EMAILS`, a caixa de entrada do domínio (e-mails para o `sac@` e mensagens do formulário de ajuda) lida pela API de recebimento do Resend. Cada e-mail pode ser respondido ali mesmo: a resposta sai do `SUPPORT_EMAIL`, na mesma conversa, com o original citado. E-mails em HTML aparecem isolados, sem scripts nem imagens externas.
 - **Planos** Free, Essencial e Profissional, com Stripe Checkout para assinar e o portal do cliente para trocar de plano ou cancelar.
 - **LGPD:** Política de Privacidade e Termos de Uso com aceite registrado, exportação dos dados, exclusão da conta, registro de auditoria e limpeza automática de dados antigos. Detalhes e pendências em [`docs/lgpd`](docs/lgpd/README.md).
 
@@ -83,6 +84,8 @@ Sistema de agendamento para clínicas médicas: cadastro de médicos com dias e 
    | `STRIPE_WEBHOOK_SECRET` | Segredo do webhook (veja a seção do Stripe abaixo) |
    | `NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL` | Link do portal do cliente do Stripe. No Stripe, configure o link de retorno do portal para `/assinatura` |
    | `SUPPORT_EMAIL` | E-mail de suporte e canal de privacidade, mostrado na Política de Privacidade, nos Termos e a quem precisa alterar as clínicas ativas antes dos 30 dias. Use um e-mail do domínio, não um pessoal |
+   | `RESEND_RECEIVING_API_KEY` | Chave do Resend com permissão **Full access**, usada só pela tela de Atendimento para ler os e-mails recebidos (a chave de envio, `RESEND_API_KEY`, pode continuar só com envio). Opcional |
+   | `SUPPORT_ADMIN_EMAILS` | E-mails (separados por vírgula) das contas do Avelliq que veem a tela de Atendimento. A conta precisa ter o e-mail confirmado. Opcional |
    | `LEGAL_CNPJ` | CNPJ mostrado na Política de Privacidade e nos Termos (opcional). Fica fora do código porque o repositório é público |
    | `RESEND_API_KEY`, `EMAIL_FROM` | Envio de emails pelo [Resend](https://resend.com). Com as duas definidas, a conta só é liberada depois de confirmar o email e o "Esqueci minha senha" fica disponível (opcional) |
    | `CRON_SECRET` | Segredo da limpeza diária (Vercel Cron) de sessões expiradas e registros de auditoria com mais de 5 anos. Sem ele, a limpeza não roda |
