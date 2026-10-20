@@ -13,9 +13,11 @@ import { getPlanUsage } from "@/lib/plan-usage";
 import { PLANS, resolvePlan } from "@/lib/plans";
 import { getServerSession } from "@/lib/server-session";
 import { getPlanPrices } from "@/lib/stripe-plan";
+import { canSimulatePlan } from "@/lib/support/admin";
 
 import { PlanCards } from "./_components/plan-cards";
 import { PlanUsageCard } from "./_components/plan-usage-card";
+import { QaPlanCard } from "./_components/qa-plan-card";
 
 const SubscriptionPage = async () => {
   const session = await getServerSession();
@@ -56,6 +58,15 @@ const SubscriptionPage = async () => {
         {/* Columns follow the content width, not the screen: the sidebar
             takes part of it. */}
         <div className="@container space-y-6">
+          {canSimulatePlan(session.user) && (
+            <QaPlanCard
+              simulatedPlan={
+                session.user.simulatedPlan
+                  ? resolvePlan(session.user.simulatedPlan).id
+                  : null
+              }
+            />
+          )}
           <PlanUsageCard
             planName={
               session.user.planExempt ? "da equipe Avelliq" : currentPlan.name

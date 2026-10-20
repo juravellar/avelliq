@@ -99,14 +99,15 @@ describe("replySupportEmail", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
-  it("refuses anyone who isn't on the team", async () => {
-    mocks.getSession.mockResolvedValue({
-      user: { email: "cliente@x.com", emailVerified: true },
-    });
-
-    const result = await replySupportEmail({ id: ID, message: "Oi" });
-
-    expect(result?.serverError).toBe("Acesso negado.");
+  it("refuses anyone who isn't on the team, and QA", async () => {
+    for (const user of [
+      { email: "cliente@x.com", emailVerified: true },
+      { email: "qa@x.com", emailVerified: true, staffRole: "qa" },
+    ]) {
+      mocks.getSession.mockResolvedValue({ user });
+      const result = await replySupportEmail({ id: ID, message: "Oi" });
+      expect(result?.serverError).toBe("Acesso negado.");
+    }
     expect(mocks.getReceivedEmail).not.toHaveBeenCalled();
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });

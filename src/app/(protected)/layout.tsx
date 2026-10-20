@@ -5,7 +5,7 @@ import { SupportWidget } from "@/components/support/support-widget";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { brandStylesheet, clinicLogoUrl } from "@/lib/branding";
 import { getServerSession } from "@/lib/server-session";
-import { canManageAccounts, isSupportStaff } from "@/lib/support/admin";
+import { canSeeAccounts, canSeeSupportInbox } from "@/lib/support/admin";
 
 import { AccountStatusBanner } from "./_components/account-status-banner";
 import { AppBreadcrumb } from "./_components/app-breadcrumb";
@@ -36,8 +36,8 @@ export default async function Layout({ children }: { children: ReactNode }) {
       <SidebarProvider>
         <AppSidebar
           logoUrl={logoUrl}
-          isSupportStaff={isSupportStaff(session.user)}
-          canManageAccounts={canManageAccounts(session.user)}
+          canSeeSupportInbox={canSeeSupportInbox(session.user)}
+          canSeeAccounts={canSeeAccounts(session.user)}
         />
         <main className="w-full min-w-0">
           <header className="bg-background flex h-10 items-center gap-4 border-b px-4">

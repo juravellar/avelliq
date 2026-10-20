@@ -8,7 +8,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageContainer, PageContent } from "@/components/ui/page-container";
 import { inClinicTimezone } from "@/helpers/time";
 import { getServerSession } from "@/lib/server-session";
-import { isSupportOwner, isSupportStaff } from "@/lib/support/admin";
+import {
+  canAnswerSupport,
+  canSeeSupportInbox,
+  isSupportOwner,
+} from "@/lib/support/admin";
 import {
   getReceivedEmail,
   InboxError,
@@ -32,7 +36,7 @@ const ReceivedEmailPage = async ({
   params: Promise<{ id: string }>;
 }) => {
   const session = await getServerSession();
-  if (!isSupportStaff(session?.user)) {
+  if (!canSeeSupportInbox(session?.user)) {
     notFound();
   }
   const { id } = await params;
@@ -103,7 +107,12 @@ const ReceivedEmailPage = async ({
                 <EmailBody text={email.text} html={email.html} />
               </CardContent>
             </Card>
-            {isOwnAddress(replyTarget(email)) ? (
+            {!canAnswerSupport(session?.user) ? (
+              <p className="text-muted-foreground rounded-lg border p-4 text-sm">
+                Contas QA veem o Atendimento para testar, mas não respondem: a
+                resposta chegaria a um cliente de verdade.
+              </p>
+            ) : isOwnAddress(replyTarget(email)) ? (
               <p className="text-muted-foreground rounded-lg border p-4 text-sm">
                 Este e-mail veio de um endereço do próprio Avelliq (
                 {replyTarget(email)}), então não há para quem responder.
