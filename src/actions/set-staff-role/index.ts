@@ -22,12 +22,13 @@ import {
 
 const AUDIT_ACTIONS: Record<StaffRole, AuditAction> = {
   support: "staff.support-granted",
+  qa: "staff.qa-granted",
   admin: "staff.admin-granted",
 };
 
-// Puts an account on Avelliq's team (Suporte or Admin) or takes it off.
-// Owners (SUPPORT_ADMIN_EMAILS) choose both; admins only choose Suporte and
-// can't change another admin.
+// Puts an account on Avelliq's team (Suporte, QA or Admin) or takes it off.
+// Owners (SUPPORT_ADMIN_EMAILS) choose every role; admins choose Suporte and
+// QA and can't change another admin.
 export const setStaffRole = actionClient
   .schema(
     z.object({

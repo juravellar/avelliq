@@ -17,6 +17,7 @@ export type AuditAction =
   | "account.exported"
   | "account.deleted"
   | "staff.support-granted"
+  | "staff.qa-granted"
   | "staff.admin-granted"
   | "staff.removed"
   | "support.replied";

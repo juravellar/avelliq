@@ -41,9 +41,11 @@ const ClinicsPage = async () => {
         <PageHeaderContent>
           <PageTitle>Minhas clínicas</PageTitle>
           <PageDescription>
-            {clinicLimit === null
-              ? `Seu plano ${plan.name} permite clínicas ilimitadas.`
-              : `Seu plano ${plan.name} permite ${clinicLimit} ${clinicLimit === 1 ? "clínica" : "clínicas"}. Você tem ${clinics.length}.`}
+            {session.user.planExempt
+              ? "Como equipe do Avelliq, você pode ter clínicas ilimitadas."
+              : clinicLimit === null
+                ? `Seu plano ${plan.name} permite clínicas ilimitadas.`
+                : `Seu plano ${plan.name} permite ${clinicLimit} ${clinicLimit === 1 ? "clínica" : "clínicas"}. Você tem ${clinics.length}.`}
           </PageDescription>
         </PageHeaderContent>
         <PageActions>

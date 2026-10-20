@@ -76,8 +76,9 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
         <PageHeaderContent>
           <PageTitle>Contas</PageTitle>
           <PageDescription>
-            Todas as contas do Avelliq. Suporte lê e responde o Atendimento;
-            Admin também vê esta tela e escolhe quem é Suporte.
+            Todas as contas do Avelliq. A equipe usa o sistema todo sem plano:
+            Suporte também responde o Atendimento, QA só testa, e Admin também
+            vê esta tela e escolhe quem é Suporte e QA.
           </PageDescription>
         </PageHeaderContent>
       </PageHeader>

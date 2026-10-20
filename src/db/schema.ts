@@ -13,9 +13,9 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-// "support" answers the Atendimento; "admin" also sees every account and
-// chooses who is support.
-export const staffRoleEnum = pgEnum("staff_role", ["support", "admin"]);
+// "support" answers the Atendimento; "qa" tests the product; "admin" also sees
+// every account and chooses support and QA. None of them needs a plan.
+export const staffRoleEnum = pgEnum("staff_role", ["support", "qa", "admin"]);
 
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),

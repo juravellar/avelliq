@@ -14,10 +14,12 @@ import {
   sendEmail,
   verificationEmail,
 } from "@/lib/email";
+import { STAFF_PLAN } from "@/lib/plans";
 import {
   loadSessionMemberships,
   sessionBranding,
 } from "@/lib/session-memberships";
+import { isPlanExempt } from "@/lib/support/admin";
 import { ACCEPT_TERMS_HEADER, termsAcceptanceForNewUser } from "@/lib/terms";
 
 export const auth = betterAuth({
@@ -55,6 +57,11 @@ export const auth = betterAuth({
       if (!userData) {
         return null as never;
       }
+      // `plan` is what sets the limits everywhere (actions, banners, free
+      // period). Avelliq's team has none; what they really subscribe to stays
+      // in subscribedPlan, for the billing pages.
+      const planExempt = isPlanExempt(userData);
+      const plan = planExempt ? STAFF_PLAN : userData.plan;
       const access = resolveClinicAccess(
         memberships.map((membership) => ({
           clinicId: membership.clinicId,
@@ -63,13 +70,15 @@ export const auth = betterAuth({
           memberSince: membership.createdAt,
           keptInPlan: membership.keptInPlan,
         })),
-        userData?.activeClinicId,
-        userData?.plan,
+        userData.activeClinicId,
+        plan,
       );
       return {
         user: {
           ...user,
-          plan: userData?.plan,
+          plan,
+          subscribedPlan: userData.plan,
+          planExempt,
           subscriptionStatus: userData?.subscriptionStatus,
           subscriptionEndsAt: userData?.subscriptionEndsAt,
           clinic: access.active ?? undefined,
@@ -146,6 +155,11 @@ export const auth = betterAuth({
   },
   session: {
     modelName: "sessionsTable",
+    // Patient data: a session ends after 12 hours without use, instead of
+    // Better Auth's 7 days renewed on every visit, which kept people signed
+    // in for good. Using the system pushes the end back, at most once an hour.
+    expiresIn: 12 * 60 * 60,
+    updateAge: 60 * 60,
     // The session is validated from a signed cookie for up to 5 minutes
     // instead of a database lookup on every request. Plan, clinics and terms
     // still come from the database in customSession above, so they are never
