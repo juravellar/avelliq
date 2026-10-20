@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import type Stripe from "stripe";
 
+import {
+  stripeClient,
+  stripeSecretKey,
+  stripeWebhookSecret,
+} from "@/lib/stripe-client";
+import type { StripeMode } from "@/lib/stripe-mode";
 import { syncSubscription } from "@/lib/stripe-subscription-sync";
 
 interface InvoiceParent {
@@ -25,8 +31,29 @@ const subscriptionIdOfInvoice = (invoice: Stripe.Invoice) => {
   return lineParent?.subscription_item_details?.subscription;
 };
 
+const MODES: StripeMode[] = ["live", "test"];
+
+// Both Stripe accounts send to this endpoint, each signing with its own
+// secret; the one that verifies says which account the event is from.
+const verify = (rawBody: string, signature: string) => {
+  for (const mode of MODES) {
+    const secret = stripeWebhookSecret(mode);
+    if (!secret || !stripeSecretKey(mode)) {
+      continue;
+    }
+    const stripe = stripeClient(mode);
+    try {
+      const event = stripe.webhooks.constructEvent(rawBody, signature, secret);
+      return { event, stripe, mode };
+    } catch {
+      // Not signed by this account; try the other one.
+    }
+  }
+  return null;
+};
+
 export const POST = async (request: Request) => {
-  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
+  if (!stripeSecretKey("live") || !stripeWebhookSecret("live")) {
     throw new Error("Stripe secret key not found");
   }
 
@@ -35,37 +62,27 @@ export const POST = async (request: Request) => {
     throw new Error("Stripe signature not found");
   }
 
-  const rawBody = await request.text();
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: "2025-05-28.basil",
-  });
-
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET,
-    );
-  } catch {
+  const verified = verify(await request.text(), signature);
+  if (!verified) {
     return NextResponse.json(
       { error: "Webhook Error: Invalid signature" },
       { status: 400 },
     );
   }
+  const { event, stripe, mode } = verified;
 
   switch (event.type) {
     case "invoice.paid": {
       const subscriptionId = subscriptionIdOfInvoice(event.data.object);
       if (subscriptionId) {
-        await syncSubscription(stripe, subscriptionId);
+        await syncSubscription(stripe, subscriptionId, mode);
       }
       break;
     }
     case "customer.subscription.created":
     case "customer.subscription.updated":
     case "customer.subscription.deleted":
-      await syncSubscription(stripe, event.data.object.id);
+      await syncSubscription(stripe, event.data.object.id, mode);
       break;
     default:
       break;

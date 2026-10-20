@@ -350,3 +350,85 @@ describe("syncSubscription", () => {
     );
   });
 });
+
+describe("syncSubscription with the test Stripe account", () => {
+  const qa = (overrides: Record<string, unknown> = {}) =>
+    user({
+      email: "qa@avelliq.com",
+      emailVerified: true,
+      staffRole: "qa",
+      plan: null,
+      stripeSubscriptionId: null,
+      stripeCustomerId: null,
+      stripeTestCustomerId: "cus_test",
+      stripeTestSubscriptionId: null,
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("STRIPE_TEST_ESSENTIAL_PLAN_PRICE_ID", "price_test_essential");
+    vi.stubEnv(
+      "STRIPE_TEST_PROFESSIONAL_PLAN_PRICE_ID",
+      "price_test_professional",
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("sets QA's simulated plan, never the real one", async () => {
+    mocks.findUser.mockResolvedValue(qa());
+    const a = subscription("sub_test", {
+      customer: "cus_test",
+      items: { data: [{ price: { id: "price_test_professional" } }] },
+    });
+    stripeHas(a, [a]);
+
+    await syncSubscription(stripe, "sub_test", "test");
+
+    expect(mocks.set).toHaveBeenCalledWith({
+      qaPlan: "professional",
+      stripeTestSubscriptionId: "sub_test",
+      stripeTestCustomerId: "cus_test",
+    });
+  });
+
+  it("puts QA back on its real plan when the test subscription ends", async () => {
+    mocks.findUser.mockResolvedValue(
+      qa({ qaPlan: "essential", stripeTestSubscriptionId: "sub_test" }),
+    );
+    const a = subscription("sub_test", {
+      customer: "cus_test",
+      status: "canceled",
+    });
+    stripeHas(a, [a]);
+
+    await syncSubscription(stripe, "sub_test", "test");
+
+    expect(mocks.set).toHaveBeenCalledWith({
+      qaPlan: null,
+      stripeTestSubscriptionId: null,
+      stripeTestCustomerId: "cus_test",
+    });
+  });
+
+  it("ignores test subscriptions of accounts that aren't QA", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const account of [
+      user({ email: "cliente@x.com", emailVerified: true, staffRole: null }),
+      qa({ emailVerified: false }),
+    ]) {
+      mocks.findUser.mockResolvedValue(account);
+      const a = subscription("sub_test", { customer: "cus_test" });
+      stripeHas(a, [a]);
+
+      await syncSubscription(stripe, "sub_test", "test");
+    }
+
+    expect(mocks.set).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledTimes(2);
+  });
+});

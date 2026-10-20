@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import Stripe from "stripe";
+import type Stripe from "stripe";
 
 import {
   BILLING_INTERVALS,
@@ -7,6 +7,12 @@ import {
   type PlanPrice,
 } from "@/lib/plan-price";
 import { PAID_PLAN_IDS, type PaidPlanId } from "@/lib/plans";
+import {
+  SECRET_KEY_ENV,
+  stripeClient,
+  stripeSecretKey,
+} from "@/lib/stripe-client";
+import type { StripeMode } from "@/lib/stripe-mode";
 
 export {
   BILLING_INTERVALS,
@@ -47,6 +53,7 @@ export const formatPlanPrice = (price: Stripe.Price): PlanPrice | null => {
 };
 
 // The yearly prices are optional: without them the page offers monthly only.
+// The test Stripe account has its own prices, under STRIPE_TEST_*.
 const PRICE_ENV: Record<PaidPlanId, Record<BillingInterval, string>> = {
   essential: {
     monthly: "STRIPE_ESSENTIAL_PLAN_PRICE_ID",
@@ -58,31 +65,46 @@ const PRICE_ENV: Record<PaidPlanId, Record<BillingInterval, string>> = {
   },
 };
 
+const priceEnv = (
+  plan: PaidPlanId,
+  interval: BillingInterval,
+  mode: StripeMode,
+) => {
+  const name = PRICE_ENV[plan][interval];
+  return mode === "test" ? name.replace(/^STRIPE_/, "STRIPE_TEST_") : name;
+};
+
 export const priceIdForPlan = (
   plan: PaidPlanId,
   interval: BillingInterval = "monthly",
-) => process.env[PRICE_ENV[plan][interval]] || undefined;
+  mode: StripeMode = "live",
+) => process.env[priceEnv(plan, interval, mode)] || undefined;
 
 // A subscription on either billing period grants the same plan.
 export const planForPriceId = (
   priceId: string | null | undefined,
+  mode: StripeMode = "live",
 ): PaidPlanId | null =>
   PAID_PLAN_IDS.find(
     (plan) =>
       priceId &&
       BILLING_INTERVALS.some(
-        (interval) => priceIdForPlan(plan, interval) === priceId,
+        (interval) => priceIdForPlan(plan, interval, mode) === priceId,
       ),
   ) ?? null;
 
-// The price id is an argument, so it is part of the cache key: changing the
-// env var takes effect at once. Failures throw and are therefore not cached.
+// Whether QA accounts can go through checkout: the test account's key and
+// at least one monthly price.
+export const isStripeTestReady = () =>
+  Boolean(stripeSecretKey("test")) &&
+  PAID_PLAN_IDS.some((plan) => priceIdForPlan(plan, "monthly", "test"));
+
+// The price id and mode are arguments, so they are part of the cache key:
+// changing the env var takes effect at once. Failures throw and are
+// therefore not cached.
 const fetchPriceById = unstable_cache(
-  async (priceId: string): Promise<PlanPrice | null> => {
-    // Read here, not passed in: arguments become part of the cache key.
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-      apiVersion: "2025-05-28.basil",
-    });
+  async (priceId: string, mode: StripeMode): Promise<PlanPrice | null> => {
+    const stripe = stripeClient(mode);
     return formatPlanPrice(await stripe.prices.retrieve(priceId));
   },
   ["plan-price"],
@@ -102,21 +124,22 @@ const reportMissingConfig = (name: string) => {
 const loadPlanPrice = async (
   plan: PaidPlanId,
   interval: BillingInterval,
+  mode: StripeMode,
 ): Promise<PlanPrice | null> => {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    reportMissingConfig("STRIPE_SECRET_KEY");
+  if (!stripeSecretKey(mode)) {
+    reportMissingConfig(SECRET_KEY_ENV[mode]);
     return null;
   }
-  const priceId = priceIdForPlan(plan, interval);
+  const priceId = priceIdForPlan(plan, interval, mode);
   if (!priceId) {
     // Yearly prices are optional, so only a missing monthly one is reported.
     if (interval === "monthly") {
-      reportMissingConfig(PRICE_ENV[plan].monthly);
+      reportMissingConfig(priceEnv(plan, "monthly", mode));
     }
     return null;
   }
   try {
-    return await fetchPriceById(priceId);
+    return await fetchPriceById(priceId, mode);
   } catch (error) {
     console.error(
       `Failed to load the ${interval} Stripe price of plan ${plan}`,
@@ -132,13 +155,15 @@ export type PlanPrices = Record<
 >;
 
 // Checkout charges these Stripe prices, so the plan cards must show the same.
-export const getPlanPrices = async (): Promise<PlanPrices> => {
+export const getPlanPrices = async (
+  mode: StripeMode = "live",
+): Promise<PlanPrices> => {
   const [essentialMonthly, essentialYearly, proMonthly, proYearly] =
     await Promise.all([
-      loadPlanPrice("essential", "monthly"),
-      loadPlanPrice("essential", "yearly"),
-      loadPlanPrice("professional", "monthly"),
-      loadPlanPrice("professional", "yearly"),
+      loadPlanPrice("essential", "monthly", mode),
+      loadPlanPrice("essential", "yearly", mode),
+      loadPlanPrice("professional", "monthly", mode),
+      loadPlanPrice("professional", "yearly", mode),
     ]);
   return {
     essential: { monthly: essentialMonthly, yearly: essentialYearly },

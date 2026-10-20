@@ -12,7 +12,7 @@ import { inClinicTimezone } from "@/helpers/time";
 import { getPlanUsage } from "@/lib/plan-usage";
 import { PLANS, resolvePlan } from "@/lib/plans";
 import { getServerSession } from "@/lib/server-session";
-import { getPlanPrices } from "@/lib/stripe-plan";
+import { getPlanPrices, isStripeTestReady } from "@/lib/stripe-plan";
 import { canSimulatePlan } from "@/lib/support/admin";
 
 import { PlanCards } from "./_components/plan-cards";
@@ -31,7 +31,7 @@ const SubscriptionPage = async () => {
   // apply, which for Avelliq's team are none.
   const currentPlan = resolvePlan(session.user.subscribedPlan);
   const [prices, usage] = await Promise.all([
-    getPlanPrices(),
+    getPlanPrices(session.user.stripeMode),
     getPlanUsage(
       session.user.clinic.id,
       session.user.plan,
@@ -65,6 +65,7 @@ const SubscriptionPage = async () => {
                   ? resolvePlan(session.user.simulatedPlan).id
                   : null
               }
+              stripeTestReady={isStripeTestReady()}
             />
           )}
           <PlanUsageCard
