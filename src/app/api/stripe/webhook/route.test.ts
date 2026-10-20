@@ -52,6 +52,7 @@ describe("Stripe webhook", () => {
     expect(mocks.syncSubscription).toHaveBeenCalledWith(
       expect.anything(),
       "sub_1",
+      "live",
     );
   });
 
@@ -69,6 +70,7 @@ describe("Stripe webhook", () => {
     expect(mocks.syncSubscription).toHaveBeenCalledWith(
       expect.anything(),
       "sub_1",
+      "live",
     );
   });
 
@@ -94,6 +96,7 @@ describe("Stripe webhook", () => {
     expect(mocks.syncSubscription).toHaveBeenCalledWith(
       expect.anything(),
       "sub_2",
+      "live",
     );
   });
 
@@ -105,6 +108,37 @@ describe("Stripe webhook", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.syncSubscription).not.toHaveBeenCalled();
+  });
+
+  it("tells events from the test Stripe account apart by their secret", async () => {
+    vi.stubEnv("STRIPE_TEST_SECRET_KEY", "sk_test_qa");
+    vi.stubEnv("STRIPE_TEST_WEBHOOK_SECRET", "whsec_test_qa");
+    mocks.constructEvent.mockImplementation(
+      (_body: string, _signature: string, secret: string) => {
+        if (secret !== "whsec_test_qa") {
+          throw new Error("bad signature");
+        }
+        return {
+          type: "customer.subscription.created",
+          data: { object: { id: "sub_qa" } },
+        };
+      },
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/stripe/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.syncSubscription).toHaveBeenCalledWith(
+      expect.anything(),
+      "sub_qa",
+      "test",
+    );
   });
 
   it("rejects requests with an invalid signature", async () => {

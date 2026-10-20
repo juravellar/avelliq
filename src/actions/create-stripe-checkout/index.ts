@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
-import Stripe from "stripe";
+import type Stripe from "stripe";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -13,10 +13,14 @@ import { UserFacingError } from "@/lib/action-errors";
 import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 import { isPaidPlan, type PaidPlanId } from "@/lib/plans";
+import { stripeClient, stripeSecretKey } from "@/lib/stripe-client";
+import { type StripeMode, stripeModeFor } from "@/lib/stripe-mode";
 import { type BillingInterval, priceIdForPlan } from "@/lib/stripe-plan";
 import {
+  billingIdsOf,
   listCustomerSubscriptions,
   retrieveIfExists,
+  TEST_SUBSCRIPTION_METADATA,
 } from "@/lib/stripe-subscription-sync";
 
 const ALREADY_SUBSCRIBED_MESSAGE =
@@ -41,45 +45,53 @@ const idempotencyKey = (scope: string, ...parts: string[]) =>
 
 type User = typeof usersTable.$inferSelect;
 
-const ensureCustomer = async (stripe: Stripe, user: User) => {
-  if (user.stripeCustomerId) {
-    return user.stripeCustomerId;
+const ensureCustomer = async (stripe: Stripe, user: User, mode: StripeMode) => {
+  const existing = billingIdsOf(user, mode).customerId;
+  if (existing) {
+    return existing;
   }
   const customer = await stripe.customers.create(
     { email: user.email, name: user.name, metadata: { userId: user.id } },
     {
       idempotencyKey: idempotencyKey(
-        "customer",
+        mode === "live" ? "customer" : "test-customer",
         user.id,
         user.email,
         user.name,
       ),
     },
   );
+  const column =
+    mode === "live"
+      ? usersTable.stripeCustomerId
+      : usersTable.stripeTestCustomerId;
   await db
     .update(usersTable)
-    .set({ stripeCustomerId: customer.id })
-    .where(
-      and(eq(usersTable.id, user.id), isNull(usersTable.stripeCustomerId)),
-    );
+    .set(
+      mode === "live"
+        ? { stripeCustomerId: customer.id }
+        : { stripeTestCustomerId: customer.id },
+    )
+    .where(and(eq(usersTable.id, user.id), isNull(column)));
   // A concurrent request may have saved its customer first; use that one.
   const saved = await db.query.usersTable.findFirst({
     where: eq(usersTable.id, user.id),
   });
-  return saved?.stripeCustomerId ?? customer.id;
+  return (saved && billingIdsOf(saved, mode).customerId) ?? customer.id;
 };
 
 const hasLiveSubscription = async (
   stripe: Stripe,
   user: User,
   customerId: string,
+  mode: StripeMode,
 ) => {
   const subscriptions = await listCustomerSubscriptions(stripe, customerId);
   if (subscriptions.some(isLive)) {
     return true;
   }
   // The current subscription may belong to an older customer of the user.
-  const currentId = user.stripeSubscriptionId;
+  const currentId = billingIdsOf(user, mode).subscriptionId;
   if (currentId && !subscriptions.some(({ id }) => id === currentId)) {
     const current = await retrieveIfExists(stripe, currentId);
     return current ? isLive(current) : false;
@@ -146,10 +158,28 @@ export const createStripeCheckout = actionClient
     if (!session?.user) {
       throw new Error("Unauthorized");
     }
-    if (!process.env.STRIPE_SECRET_KEY) {
+    const user = await db.query.usersTable.findFirst({
+      where: eq(usersTable.id, session.user.id),
+    });
+    if (!user) {
+      throw new Error("Unauthorized");
+    }
+    // QA accounts pay through the test Stripe account, and never through the
+    // real one: without test keys they can't check out at all.
+    const mode = stripeModeFor(user);
+    if (!stripeSecretKey(mode)) {
+      if (mode === "test") {
+        throw new UserFacingError(
+          "O Stripe de teste não está configurado neste ambiente, então contas QA não podem assinar.",
+        );
+      }
       throw new Error("Stripe secret key not found");
     }
-    const priceId = priceIdForPlan(parsedInput.plan, parsedInput.interval);
+    const priceId = priceIdForPlan(
+      parsedInput.plan,
+      parsedInput.interval,
+      mode,
+    );
     if (!priceId && parsedInput.interval === "yearly") {
       throw new UserFacingError(
         "O pagamento anual não está disponível para este plano.",
@@ -158,24 +188,17 @@ export const createStripeCheckout = actionClient
     if (!priceId) {
       throw new Error(`Stripe price not configured for ${parsedInput.plan}`);
     }
-    const user = await db.query.usersTable.findFirst({
-      where: eq(usersTable.id, session.user.id),
-    });
-    if (!user) {
-      throw new Error("Unauthorized");
-    }
-    if (user.stripeSubscriptionId && isPaidPlan(user.plan)) {
+    const paidPlan = mode === "live" ? user.plan : user.qaPlan;
+    if (billingIdsOf(user, mode).subscriptionId && isPaidPlan(paidPlan)) {
       throw new UserFacingError(ALREADY_SUBSCRIBED_MESSAGE);
     }
 
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-05-28.basil",
-    });
-    const customerId = await ensureCustomer(stripe, user);
+    const stripe = stripeClient(mode);
+    const customerId = await ensureCustomer(stripe, user, mode);
 
     // Stripe, not the database, is the source of truth here: the database
     // only learns about a paid checkout when its webhook arrives.
-    if (await hasLiveSubscription(stripe, user, customerId)) {
+    if (await hasLiveSubscription(stripe, user, customerId, mode)) {
       throw new UserFacingError(ALREADY_SUBSCRIBED_MESSAGE);
     }
 
@@ -206,6 +229,7 @@ export const createStripeCheckout = actionClient
         subscription_data: {
           metadata: {
             userId: user.id,
+            ...(mode === "test" ? TEST_SUBSCRIPTION_METADATA : {}),
           },
         },
         line_items: [

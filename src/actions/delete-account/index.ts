@@ -12,6 +12,7 @@ import {
 } from "@/lib/account-data";
 import { UserFacingError } from "@/lib/action-errors";
 import { recordAudit } from "@/lib/audit";
+import { stripeSecretKey } from "@/lib/stripe-client";
 import { userActionClient } from "@/lib/user-action";
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
@@ -34,9 +35,16 @@ export const deleteAccount = userActionClient
 
     // Billing stops before any data is deleted: if Stripe fails, the account
     // stays as it was instead of being gone while still charging.
-    if (user.stripeCustomerId) {
+    if (user.stripeCustomerId || user.stripeTestCustomerId) {
       try {
-        await cancelBillableSubscriptions(user.stripeCustomerId);
+        if (user.stripeCustomerId) {
+          await cancelBillableSubscriptions(user.stripeCustomerId);
+        }
+        // A QA account's test subscriptions charge nobody, but are cleaned up
+        // too when the test account is still configured.
+        if (user.stripeTestCustomerId && stripeSecretKey("test")) {
+          await cancelBillableSubscriptions(user.stripeTestCustomerId, "test");
+        }
       } catch {
         throw new UserFacingError(
           "Não foi possível cancelar sua assinatura agora, então nada foi excluído. Tente de novo em alguns minutos ou fale com o suporte.",

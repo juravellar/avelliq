@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
     createSession: vi.fn(),
     listSubscriptions: vi.fn(),
     retrieveSubscription: vi.fn(),
+    stripeKey: vi.fn(),
   };
 });
 
@@ -29,6 +30,9 @@ vi.mock("@/db", () => ({
 }));
 vi.mock("stripe", () => ({
   default: class {
+    constructor(key: string) {
+      mocks.stripeKey(key);
+    }
     customers = { create: mocks.createCustomer };
     subscriptions = {
       list: mocks.listSubscriptions,
@@ -70,7 +74,10 @@ describe("createStripeCheckout", () => {
     mocks.createCustomer.mockResolvedValue({ id: "cus_new" });
     mocks.listSubscriptions.mockReturnValue(pages([]));
     mocks.listSessions.mockReturnValue(pages([]));
-    mocks.createSession.mockResolvedValue({ id: "cs_new", url: "https://checkout.stripe.com/c/pay/cs_new" });
+    mocks.createSession.mockResolvedValue({
+      id: "cs_new",
+      url: "https://checkout.stripe.com/c/pay/cs_new",
+    });
   });
 
   afterEach(() => {
@@ -81,7 +88,9 @@ describe("createStripeCheckout", () => {
   it("opens a checkout for the plan, idempotent within a minute", async () => {
     const result = await createStripeCheckout({ plan: "professional" });
 
-    expect(result?.data).toEqual({ url: "https://checkout.stripe.com/c/pay/cs_new" });
+    expect(result?.data).toEqual({
+      url: "https://checkout.stripe.com/c/pay/cs_new",
+    });
     expect(mocks.createSession).toHaveBeenCalledWith(
       expect.objectContaining({
         customer: "cus_1",
@@ -167,23 +176,36 @@ describe("createStripeCheckout", () => {
 
     const result = await createStripeCheckout({ plan: "professional" });
 
-    expect(result?.data).toEqual({ url: "https://checkout.stripe.com/c/pay/cs_new" });
+    expect(result?.data).toEqual({
+      url: "https://checkout.stripe.com/c/pay/cs_new",
+    });
   });
 
   it("reuses the open checkout for the same plan", async () => {
     mocks.listSessions.mockReturnValue(
-      pages([{ id: "cs_open", url: "https://checkout.stripe.com/c/pay/cs_open", metadata: { plan: "professional" } }]),
+      pages([
+        {
+          id: "cs_open",
+          url: "https://checkout.stripe.com/c/pay/cs_open",
+          metadata: { plan: "professional" },
+        },
+      ]),
     );
 
     const result = await createStripeCheckout({ plan: "professional" });
 
-    expect(result?.data).toEqual({ url: "https://checkout.stripe.com/c/pay/cs_open" });
+    expect(result?.data).toEqual({
+      url: "https://checkout.stripe.com/c/pay/cs_open",
+    });
     expect(mocks.expireSession).not.toHaveBeenCalled();
     expect(mocks.createSession).not.toHaveBeenCalled();
   });
 
   it("charges the yearly price when the user picks yearly", async () => {
-    vi.stubEnv("STRIPE_PROFESSIONAL_ANNUAL_PRICE_ID", "price_professional_year");
+    vi.stubEnv(
+      "STRIPE_PROFESSIONAL_ANNUAL_PRICE_ID",
+      "price_professional_year",
+    );
 
     await createStripeCheckout({ plan: "professional", interval: "yearly" });
 
@@ -211,10 +233,19 @@ describe("createStripeCheckout", () => {
   });
 
   it("doesn't reuse an open monthly checkout for a yearly one", async () => {
-    vi.stubEnv("STRIPE_PROFESSIONAL_ANNUAL_PRICE_ID", "price_professional_year");
+    vi.stubEnv(
+      "STRIPE_PROFESSIONAL_ANNUAL_PRICE_ID",
+      "price_professional_year",
+    );
     mocks.listSessions
       .mockReturnValueOnce(
-        pages([{ id: "cs_month", url: "https://checkout.stripe.com/c/pay/cs_month", metadata: { plan: "professional" } }]),
+        pages([
+          {
+            id: "cs_month",
+            url: "https://checkout.stripe.com/c/pay/cs_month",
+            metadata: { plan: "professional" },
+          },
+        ]),
       )
       .mockReturnValue(pages([]));
 
@@ -224,24 +255,38 @@ describe("createStripeCheckout", () => {
     });
 
     expect(mocks.expireSession).toHaveBeenCalledWith("cs_month");
-    expect(result?.data).toEqual({ url: "https://checkout.stripe.com/c/pay/cs_new" });
+    expect(result?.data).toEqual({
+      url: "https://checkout.stripe.com/c/pay/cs_new",
+    });
   });
 
   it("expires open checkouts for another plan", async () => {
     mocks.listSessions
       .mockReturnValueOnce(
-        pages([{ id: "cs_other", url: "https://checkout.stripe.com/c/pay/cs_other", metadata: { plan: "essential" } }]),
+        pages([
+          {
+            id: "cs_other",
+            url: "https://checkout.stripe.com/c/pay/cs_other",
+            metadata: { plan: "essential" },
+          },
+        ]),
       )
       .mockReturnValue(pages([]));
 
     const result = await createStripeCheckout({ plan: "professional" });
 
     expect(mocks.expireSession).toHaveBeenCalledWith("cs_other");
-    expect(result?.data).toEqual({ url: "https://checkout.stripe.com/c/pay/cs_new" });
+    expect(result?.data).toEqual({
+      url: "https://checkout.stripe.com/c/pay/cs_new",
+    });
   });
 
   it("refuses to open a second checkout if an old one could not be expired", async () => {
-    const other = { id: "cs_other", url: "https://checkout.stripe.com/c/pay/cs_other", metadata: { plan: "essential" } };
+    const other = {
+      id: "cs_other",
+      url: "https://checkout.stripe.com/c/pay/cs_other",
+      metadata: { plan: "essential" },
+    };
     mocks.listSessions.mockReturnValue(pages([other]));
     mocks.expireSession.mockRejectedValue(new Error("Stripe is unavailable"));
 
@@ -254,14 +299,22 @@ describe("createStripeCheckout", () => {
   it("ignores an expire error when the session already closed", async () => {
     mocks.listSessions
       .mockReturnValueOnce(
-        pages([{ id: "cs_paid", url: "https://checkout.stripe.com/c/pay/cs_paid", metadata: { plan: "essential" } }]),
+        pages([
+          {
+            id: "cs_paid",
+            url: "https://checkout.stripe.com/c/pay/cs_paid",
+            metadata: { plan: "essential" },
+          },
+        ]),
       )
       .mockReturnValue(pages([]));
     mocks.expireSession.mockRejectedValue(new Error("session is not open"));
 
     const result = await createStripeCheckout({ plan: "professional" });
 
-    expect(result?.data).toEqual({ url: "https://checkout.stripe.com/c/pay/cs_new" });
+    expect(result?.data).toEqual({
+      url: "https://checkout.stripe.com/c/pay/cs_new",
+    });
   });
 
   it("refuses when the database already has a paid subscription", async () => {
@@ -290,7 +343,13 @@ describe("createStripeCheckout", () => {
     await createStripeCheckout({ plan: "professional" });
     mocks.listSessions
       .mockReturnValueOnce(
-        pages([{ id: "cs_b", url: "https://checkout.stripe.com/c/pay/cs_b", metadata: { plan: "essential" } }]),
+        pages([
+          {
+            id: "cs_b",
+            url: "https://checkout.stripe.com/c/pay/cs_b",
+            metadata: { plan: "essential" },
+          },
+        ]),
       )
       .mockReturnValue(pages([]));
     await createStripeCheckout({ plan: "professional" });
@@ -305,7 +364,10 @@ describe("createStripeCheckout", () => {
     const keys: string[] = [];
     mocks.createSession.mockImplementation(async (_params, options) => {
       keys.push(options.idempotencyKey);
-      return { id: "cs_same", url: "https://checkout.stripe.com/c/pay/cs_same" };
+      return {
+        id: "cs_same",
+        url: "https://checkout.stripe.com/c/pay/cs_same",
+      };
     });
 
     await Promise.all([
@@ -314,5 +376,81 @@ describe("createStripeCheckout", () => {
     ]);
 
     expect(keys[0]).toBe(keys[1]);
+  });
+
+  describe("for QA accounts", () => {
+    const qaUser = {
+      ...freeUser,
+      email: "qa@avelliq.com",
+      emailVerified: true,
+      staffRole: "qa",
+      qaPlan: null,
+      stripeCustomerId: "cus_live",
+      stripeTestCustomerId: "cus_test",
+      stripeTestSubscriptionId: null,
+    };
+
+    beforeEach(() => {
+      vi.stubEnv("STRIPE_TEST_SECRET_KEY", "sk_test_qa");
+      vi.stubEnv("STRIPE_TEST_PROFESSIONAL_PLAN_PRICE_ID", "price_test_pro");
+      mocks.findUser.mockResolvedValue(qaUser);
+    });
+
+    it("checks out through the test Stripe account, never the real one", async () => {
+      const result = await createStripeCheckout({ plan: "professional" });
+
+      expect(result?.data?.url).toBeDefined();
+      expect(mocks.stripeKey).toHaveBeenCalledWith("sk_test_qa");
+      expect(mocks.stripeKey).not.toHaveBeenCalledWith("sk_test");
+      expect(mocks.createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer: "cus_test",
+          line_items: [{ price: "price_test_pro", quantity: 1 }],
+          subscription_data: {
+            metadata: { userId: "user_1", stripeMode: "test" },
+          },
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("keeps the test customer apart from the real one", async () => {
+      mocks.findUser
+        .mockResolvedValueOnce({ ...qaUser, stripeTestCustomerId: null })
+        .mockResolvedValue({ ...qaUser, stripeTestCustomerId: "cus_new" });
+
+      await createStripeCheckout({ plan: "professional" });
+
+      expect(mocks.set).toHaveBeenCalledWith({
+        stripeTestCustomerId: "cus_new",
+      });
+      expect(mocks.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ stripeCustomerId: expect.anything() }),
+      );
+    });
+
+    it("refuses to check out when the test account isn't configured", async () => {
+      vi.stubEnv("STRIPE_TEST_SECRET_KEY", "");
+
+      const result = await createStripeCheckout({ plan: "professional" });
+
+      expect(result?.serverError).toMatch(
+        /Stripe de teste não está configurado/,
+      );
+      expect(mocks.stripeKey).not.toHaveBeenCalled();
+      expect(mocks.createSession).not.toHaveBeenCalled();
+    });
+
+    it("says a QA account already has a test subscription", async () => {
+      mocks.findUser.mockResolvedValue({
+        ...qaUser,
+        qaPlan: "essential",
+        stripeTestSubscriptionId: "sub_test",
+      });
+
+      const result = await createStripeCheckout({ plan: "professional" });
+
+      expect(result?.serverError).toMatch(/já tem uma assinatura/);
+    });
   });
 });

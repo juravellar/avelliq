@@ -96,4 +96,22 @@ describe("deleteAccount", () => {
     expect(mocks.cancelBillableSubscriptions).not.toHaveBeenCalled();
     expect(mocks.deleteAccountData).toHaveBeenCalled();
   });
+
+  it("also cancels a QA account's test subscriptions", async () => {
+    vi.stubEnv("STRIPE_TEST_SECRET_KEY", "sk_test_qa");
+    mocks.findUser.mockResolvedValue({
+      id: "user_1",
+      stripeCustomerId: null,
+      stripeTestCustomerId: "cus_test",
+    });
+
+    await deleteAccount({ confirmEmail: "dona@clinica.com" });
+
+    expect(mocks.cancelBillableSubscriptions).toHaveBeenCalledTimes(1);
+    expect(mocks.cancelBillableSubscriptions).toHaveBeenCalledWith(
+      "cus_test",
+      "test",
+    );
+    vi.unstubAllEnvs();
+  });
 });
