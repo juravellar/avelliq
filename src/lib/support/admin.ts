@@ -66,3 +66,19 @@ export const rolesManagedBy = (
   }
   return role === "admin" ? ["support"] : [];
 };
+
+// Whether `viewer` may change `account`'s role at all: never an owner's, and
+// an admin's only when the viewer is an owner.
+export const canChangeRole = (
+  viewer: StaffCandidate | null | undefined,
+  account: StaffCandidate,
+) => {
+  if (isSupportOwner(account)) {
+    return false;
+  }
+  const managed = rolesManagedBy(viewer);
+  const current = account.staffRole;
+  return (
+    managed.length > 0 && (!isStaffRole(current) || managed.includes(current))
+  );
+};

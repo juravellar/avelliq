@@ -13,6 +13,7 @@ import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 import { findAccount } from "@/lib/support/accounts";
 import {
+  canChangeRole,
   isSupportOwner,
   rolesManagedBy,
   STAFF_ROLES,
@@ -51,7 +52,7 @@ export const setStaffRole = actionClient
     }
     const current = account.staffRole;
     if (
-      (current && !managed.includes(current)) ||
+      !canChangeRole(session?.user, account) ||
       (parsedInput.role && !managed.includes(parsedInput.role))
     ) {
       throw new UserFacingError("Só uma conta principal escolhe os admins.");

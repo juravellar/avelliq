@@ -23,6 +23,7 @@ import {
   pageNumber,
 } from "@/lib/support/accounts";
 import {
+  canChangeRole,
   canManageAccounts,
   isSupportOwner,
   rolesManagedBy,
@@ -107,11 +108,6 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
           <ul className="divide-y rounded-lg border">
             {rows.map((account) => {
               const owner = isSupportOwner(account);
-              // An admin can't change another admin, only an owner can.
-              const canChange =
-                !owner &&
-                (account.staffRole === null ||
-                  roles.includes(account.staffRole));
               return (
                 <li
                   key={account.id}
@@ -147,7 +143,7 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
                       {inClinicTimezone(account.createdAt).format("DD/MM/YYYY")}
                     </p>
                   </div>
-                  {canChange && (
+                  {canChangeRole(session?.user, account) && (
                     <RolePicker
                       userId={account.id}
                       name={account.name}

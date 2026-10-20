@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  canChangeRole,
   canManageAccounts,
   isSupportOwner,
   isSupportStaff,
@@ -61,6 +62,24 @@ describe("team roles", () => {
     expect(rolesManagedBy(support)).toEqual([]);
     expect(rolesManagedBy(customer)).toEqual([]);
     expect(rolesManagedBy(undefined)).toEqual([]);
+  });
+
+  it("lets owners change anyone but owners, admins only support and others", () => {
+    const otherAdmin = { ...admin, email: "b@y.com" };
+    expect(canChangeRole(owner, admin)).toBe(true);
+    expect(canChangeRole(owner, support)).toBe(true);
+    expect(canChangeRole(owner, customer)).toBe(true);
+    expect(canChangeRole(owner, owner)).toBe(false);
+
+    expect(canChangeRole(admin, support)).toBe(true);
+    expect(canChangeRole(admin, customer)).toBe(true);
+    expect(canChangeRole(admin, otherAdmin)).toBe(false);
+    expect(canChangeRole(admin, admin)).toBe(false);
+    expect(canChangeRole(admin, owner)).toBe(false);
+
+    expect(canChangeRole(support, customer)).toBe(false);
+    expect(canChangeRole(customer, customer)).toBe(false);
+    expect(canChangeRole(undefined, customer)).toBe(false);
   });
 
   it("ignores roles of unconfirmed e-mails and unknown roles", () => {
