@@ -406,6 +406,9 @@ describe("createStripeCheckout", () => {
         expect.objectContaining({
           customer: "cus_test",
           line_items: [{ price: "price_test_pro", quantity: 1 }],
+          subscription_data: {
+            metadata: { userId: "user_1", stripeMode: "test" },
+          },
         }),
         expect.anything(),
       );
