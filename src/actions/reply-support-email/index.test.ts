@@ -29,7 +29,7 @@ const delegated = {
   id: "staff",
   email: "staff@x.com",
   emailVerified: true,
-  supportAdmin: true,
+  staffRole: "support",
 };
 
 describe("replySupportEmail", () => {
@@ -83,7 +83,7 @@ describe("replySupportEmail", () => {
     });
   });
 
-  it("lets other admins answer only mail sent to the support addresses", async () => {
+  it("lets the rest of the team answer only mail sent to the support addresses", async () => {
     mocks.getSession.mockResolvedValue({ user: delegated });
     expect(
       (await replySupportEmail({ id: ID, message: "Olá, Ana!" }))?.data,
@@ -99,7 +99,7 @@ describe("replySupportEmail", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
-  it("refuses anyone who isn't a support admin", async () => {
+  it("refuses anyone who isn't on the team", async () => {
     mocks.getSession.mockResolvedValue({
       user: { email: "cliente@x.com", emailVerified: true },
     });

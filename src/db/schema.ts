@@ -13,6 +13,10 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+// "support" answers the Atendimento; "admin" also sees every account and
+// chooses who is support.
+export const staffRoleEnum = pgEnum("staff_role", ["support", "admin"]);
+
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -38,9 +42,12 @@ export const usersTable = pgTable("users", {
   // and when; a newer version asks again.
   termsAcceptedAt: timestamp("terms_accepted_at"),
   termsVersion: text("terms_version"),
-  // Avelliq staff who read and answer support mail, granted by an owner in
-  // the Contas page. Owners themselves come from SUPPORT_ADMIN_EMAILS.
+  // Replaced by staffRole. Kept while the previous version may still be
+  // running during a deploy; a later migration drops it.
   supportAdmin: boolean("support_admin").notNull().default(false),
+  // Avelliq's own team, chosen in the Contas page (see lib/support/admin.ts).
+  // The main accounts themselves come from SUPPORT_ADMIN_EMAILS.
+  staffRole: staffRoleEnum("staff_role"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
 });

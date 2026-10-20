@@ -9,7 +9,7 @@ import { recordAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { isEmailConfigured, sendEmail, supportReplyEmail } from "@/lib/email";
 import { actionClient } from "@/lib/next-safe-action";
-import { isSupportAdmin, isSupportOwner } from "@/lib/support/admin";
+import { isSupportOwner, isSupportStaff } from "@/lib/support/admin";
 import { getReceivedEmail, isInboxConfigured } from "@/lib/support/inbox";
 import {
   isForSupport,
@@ -36,7 +36,7 @@ export const replySupportEmail = actionClient
   )
   .action(async ({ parsedInput }) => {
     const session = await auth.api.getSession({ headers: await headers() });
-    if (!isSupportAdmin(session?.user)) {
+    if (!isSupportStaff(session?.user)) {
       throw new UserFacingError("Acesso negado.");
     }
     const supportAddress = process.env.SUPPORT_EMAIL;
@@ -69,7 +69,7 @@ export const replySupportEmail = actionClient
       ),
       headers: threadHeaders(original),
     });
-    // Which admin answered which e-mail; the reply itself already went out,
+    // Who on the team answered which e-mail; the reply itself already went out,
     // so a failure here is only logged.
     await recordAudit({
       userId: session!.user.id,

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageContainer, PageContent } from "@/components/ui/page-container";
 import { inClinicTimezone } from "@/helpers/time";
 import { getServerSession } from "@/lib/server-session";
-import { isSupportAdmin, isSupportOwner } from "@/lib/support/admin";
+import { isSupportOwner, isSupportStaff } from "@/lib/support/admin";
 import {
   getReceivedEmail,
   InboxError,
@@ -32,7 +32,7 @@ const ReceivedEmailPage = async ({
   params: Promise<{ id: string }>;
 }) => {
   const session = await getServerSession();
-  if (!isSupportAdmin(session?.user)) {
+  if (!isSupportStaff(session?.user)) {
     notFound();
   }
   const { id } = await params;

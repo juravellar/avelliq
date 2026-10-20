@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/page-container";
 import { inClinicTimezone } from "@/helpers/time";
 import { getServerSession } from "@/lib/server-session";
-import { isSupportAdmin, isSupportOwner } from "@/lib/support/admin";
+import { isSupportOwner, isSupportStaff } from "@/lib/support/admin";
 import {
   isInboxConfigured,
   isReceivedEmailId,
@@ -44,11 +44,11 @@ const senderOf = (email: ReceivedEmailSummary) =>
 // exist.
 const InboxPage = async ({ searchParams }: InboxPageProps) => {
   const session = await getServerSession();
-  if (!isSupportAdmin(session?.user)) {
+  if (!isSupportStaff(session?.user)) {
     notFound();
   }
-  // Main accounts see all the domain's mail; other admins only what was sent
-  // to the support addresses.
+  // Main accounts see all the domain's mail; the rest of the team only what
+  // was sent to the support addresses.
   const seesAll = isSupportOwner(session?.user);
   const { depois, antes } = await searchParams;
   const after = depois && isReceivedEmailId(depois) ? depois : undefined;

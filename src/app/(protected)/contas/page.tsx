@@ -22,9 +22,15 @@ import {
   listAccounts,
   pageNumber,
 } from "@/lib/support/accounts";
-import { isSupportOwner } from "@/lib/support/admin";
+import {
+  canChangeRole,
+  canManageAccounts,
+  isSupportOwner,
+  rolesManagedBy,
+  STAFF_ROLE_NAMES,
+} from "@/lib/support/admin";
 
-import { AdminToggle } from "./_components/admin-toggle";
+import { RolePicker } from "./_components/role-picker";
 
 interface AccountsPageProps {
   searchParams: Promise<{ busca?: string; pagina?: string }>;
@@ -46,14 +52,15 @@ const pageHref = (search: string, page: number) => {
   return query ? `/contas?${query}` : "/contas";
 };
 
-// Every Avelliq account, for the owners (SUPPORT_ADMIN_EMAILS). Here they
-// find accounts and choose who else can answer support mail. For everyone
-// else the page doesn't exist.
+// Every Avelliq account, for the owners (SUPPORT_ADMIN_EMAILS) and admins.
+// Here they find accounts and choose Avelliq's team: owners choose admins and
+// support, admins only support. For everyone else the page doesn't exist.
 const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
   const session = await getServerSession();
-  if (!isSupportOwner(session?.user)) {
+  if (!canManageAccounts(session?.user)) {
     notFound();
   }
+  const roles = rolesManagedBy(session?.user);
   const params = await searchParams;
   const search = params.busca?.trim().slice(0, 100) ?? "";
   const page = pageNumber(params.pagina);
@@ -69,7 +76,8 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
         <PageHeaderContent>
           <PageTitle>Contas</PageTitle>
           <PageDescription>
-            Todas as contas do Avelliq. Admins leem e respondem o Atendimento.
+            Todas as contas do Avelliq. Suporte lê e responde o Atendimento;
+            Admin também vê esta tela e escolhe quem é Suporte.
           </PageDescription>
         </PageHeaderContent>
       </PageHeader>
@@ -113,7 +121,11 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
                       {owner ? (
                         <Badge>Principal</Badge>
                       ) : (
-                        account.supportAdmin && <Badge>Admin</Badge>
+                        account.staffRole && (
+                          <Badge variant="secondary">
+                            {STAFF_ROLE_NAMES[account.staffRole]}
+                          </Badge>
+                        )
                       )}
                       {!account.emailVerified && (
                         <Badge variant="outline">E-mail não confirmado</Badge>
@@ -131,12 +143,13 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
                       {inClinicTimezone(account.createdAt).format("DD/MM/YYYY")}
                     </p>
                   </div>
-                  {!owner && (
-                    <AdminToggle
+                  {canChangeRole(session?.user, account) && (
+                    <RolePicker
                       userId={account.id}
                       name={account.name}
-                      admin={account.supportAdmin}
-                      canGrant={account.emailVerified}
+                      role={account.staffRole}
+                      roles={roles}
+                      canJoin={account.emailVerified}
                     />
                   )}
                 </li>
