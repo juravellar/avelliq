@@ -56,7 +56,8 @@ export const auth = betterAuth({
       if (!userData) {
         return null as never;
       }
-      const { plan, subscribedPlan, planExempt } = sessionPlans(userData);
+      const { plan, subscribedPlan, simulatedPlan, planExempt } =
+        sessionPlans(userData);
       const access = resolveClinicAccess(
         memberships.map((membership) => ({
           clinicId: membership.clinicId,
@@ -73,6 +74,7 @@ export const auth = betterAuth({
           ...user,
           plan,
           subscribedPlan,
+          simulatedPlan,
           planExempt,
           subscriptionStatus: userData?.subscriptionStatus,
           subscriptionEndsAt: userData?.subscriptionEndsAt,

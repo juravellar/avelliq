@@ -49,35 +49,52 @@ const roleOf = (
   return isStaffRole(user.staffRole) ? user.staffRole : null;
 };
 
-// Everyone on Avelliq's team uses the whole system without a plan. They can
-// still subscribe; the limits just don't apply to them.
-export const isPlanExempt = (user: StaffCandidate | null | undefined) =>
-  roleOf(user) !== null;
-
-// The session's plans: `plan` sets the limits everywhere (actions, banners,
-// free period), and for the team it is the unlimited one; subscribedPlan is
-// what the account really pays for, for the billing pages.
-export const sessionPlans = (
-  user: StaffCandidate & { plan?: string | null },
-) => {
-  const planExempt = isPlanExempt(user);
-  return {
-    plan: planExempt ? STAFF_PLAN : (user.plan ?? null),
-    subscribedPlan: user.plan ?? null,
-    planExempt,
-  };
-};
-
-// Who reads and answers support mail. QA tests the product and doesn't.
-export const isSupportStaff = (user: StaffCandidate | null | undefined) => {
+// Owners, admins and support use the whole system without a plan. They can
+// still subscribe; the limits just don't apply to them. QA lives by the plan
+// like a customer, since testing the plans is part of the job.
+export const isPlanExempt = (user: StaffCandidate | null | undefined) => {
   const role = roleOf(user);
   return role !== null && role !== "qa";
 };
 
-// Who sees the Contas page: owners and admins.
-export const canManageAccounts = (user: StaffCandidate | null | undefined) => {
+// QA picks which plan to test with, without paying (see sessionPlans).
+export const canSimulatePlan = (user: StaffCandidate | null | undefined) =>
+  roleOf(user) === "qa";
+
+// The session's plans: `plan` sets the limits everywhere (actions, banners,
+// free period), and for the team it is the unlimited one; subscribedPlan is
+// the one the billing pages show. For QA both are the simulated plan, so the
+// whole system behaves as it would for a customer on it.
+export const sessionPlans = (
+  user: StaffCandidate & { plan?: string | null; qaPlan?: string | null },
+) => {
+  const planExempt = isPlanExempt(user);
+  const simulatedPlan = canSimulatePlan(user) ? (user.qaPlan ?? null) : null;
+  const subscribedPlan = simulatedPlan ?? user.plan ?? null;
+  return {
+    plan: planExempt ? STAFF_PLAN : subscribedPlan,
+    subscribedPlan,
+    simulatedPlan,
+    planExempt,
+  };
+};
+
+// Who opens the Atendimento: the whole team. QA only looks.
+export const canSeeSupportInbox = (user: StaffCandidate | null | undefined) =>
+  roleOf(user) !== null;
+
+// Who answers customers: everyone but QA, whose replies would reach real
+// people.
+export const canAnswerSupport = (user: StaffCandidate | null | undefined) => {
   const role = roleOf(user);
-  return role === "owner" || role === "admin";
+  return role !== null && role !== "qa";
+};
+
+// Who opens the Contas page: owners, admins and QA. Changing roles is
+// rolesManagedBy's, and QA manages none.
+export const canSeeAccounts = (user: StaffCandidate | null | undefined) => {
+  const role = roleOf(user);
+  return role === "owner" || role === "admin" || role === "qa";
 };
 
 // The roles someone may give or take away: owners choose every role, admins

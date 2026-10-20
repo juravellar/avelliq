@@ -48,6 +48,9 @@ export const usersTable = pgTable("users", {
   // Avelliq's own team, chosen in the Contas page (see lib/support/admin.ts).
   // The main accounts themselves come from SUPPORT_ADMIN_EMAILS.
   staffRole: staffRoleEnum("staff_role"),
+  // The plan a QA account tests with instead of its own, without paying.
+  // Ignored for anyone else; null means its real plan.
+  qaPlan: text("qa_plan"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
 });
