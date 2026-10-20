@@ -96,13 +96,14 @@ const otherItems = [
 // With a logo, the clinic's brand replaces Avelliq's at the top of the menu.
 export function AppSidebar({
   logoUrl,
-  isSupportAdmin = false,
-  isSupportOwner = false,
+  isSupportStaff = false,
+  canManageAccounts = false,
 }: {
   logoUrl: string | null;
-  // Avelliq staff also see the support inbox; owners also see every account.
-  isSupportAdmin?: boolean;
-  isSupportOwner?: boolean;
+  // Avelliq's team also sees the support inbox; owners and admins also see
+  // every account.
+  isSupportStaff?: boolean;
+  canManageAccounts?: boolean;
 }) {
   const router = useRouter();
   const user = useSessionUser();
@@ -226,7 +227,7 @@ export function AppSidebar({
               <SidebarMenu>
                 {[
                   ...otherItems,
-                  ...(isSupportAdmin
+                  ...(isSupportStaff
                     ? [
                         {
                           title: "Atendimento",
@@ -235,7 +236,7 @@ export function AppSidebar({
                         },
                       ]
                     : []),
-                  ...(isSupportOwner
+                  ...(canManageAccounts
                     ? [{ title: "Contas", url: "/contas", icon: ShieldCheck }]
                     : []),
                 ].map((item) => (

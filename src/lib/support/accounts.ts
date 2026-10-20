@@ -3,6 +3,8 @@ import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { usersTable } from "@/db/schema";
 
+import type { StaffRole } from "./admin";
+
 export const ACCOUNTS_PAGE_SIZE = 25;
 
 // A typed search matches anywhere in the name or e-mail; % and _ are taken
@@ -22,14 +24,14 @@ export interface AccountRow {
   email: string;
   emailVerified: boolean;
   plan: string | null;
-  supportAdmin: boolean;
+  staffRole: StaffRole | null;
   createdAt: Date;
   clinicCount: number;
   // "credential" (e-mail and password), "google", ...
   providers: string[];
 }
 
-// Every Avelliq account, newest first, for the owners' Contas page.
+// Every Avelliq account, newest first, for the Contas page.
 export const listAccounts = async ({
   search,
   page,
@@ -52,7 +54,7 @@ export const listAccounts = async ({
         email: usersTable.email,
         emailVerified: usersTable.emailVerified,
         plan: usersTable.plan,
-        supportAdmin: usersTable.supportAdmin,
+        staffRole: usersTable.staffRole,
         createdAt: usersTable.createdAt,
         // Written out with table names: inside a subquery Drizzle leaves
         // columns unqualified, and "id" would be the subquery's own.
