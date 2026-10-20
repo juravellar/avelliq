@@ -5,12 +5,10 @@ import type { ReactNode } from "react";
 
 import { inClinicTimezone } from "@/helpers/time";
 import { accountStatus } from "@/lib/account-status";
+import { customerPortalUrl } from "@/lib/stripe-mode";
 import { cn } from "@/lib/utils";
 
 import { useSessionUser } from "./session-provider";
-
-const customerPortalUrl = (email: string) =>
-  `${process.env.NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL}?prefilled_email=${encodeURIComponent(email)}`;
 
 function Banner({
   tone,
@@ -49,7 +47,10 @@ export function AccountStatusBanner() {
         <Banner tone="warning">
           Não conseguimos cobrar sua assinatura do plano {status.planName}.
           Atualize a forma de pagamento para não perder o acesso.{" "}
-          <a href={customerPortalUrl(user.email)} className={linkClass}>
+          <a
+            href={customerPortalUrl(user.stripeMode, user.email)}
+            className={linkClass}
+          >
             Atualizar pagamento
           </a>
         </Banner>
@@ -82,7 +83,10 @@ export function AccountStatusBanner() {
           Sua assinatura do plano {status.planName} foi cancelada e termina em{" "}
           {inClinicTimezone(status.endsAt).format("DD/MM/YYYY")}. Depois disso,
           a conta volta para o Free.{" "}
-          <a href={customerPortalUrl(user.email)} className={linkClass}>
+          <a
+            href={customerPortalUrl(user.stripeMode, user.email)}
+            className={linkClass}
+          >
             Reativar assinatura
           </a>
         </Banner>

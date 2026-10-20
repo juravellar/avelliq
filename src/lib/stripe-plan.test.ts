@@ -110,6 +110,21 @@ describe("yearly plans", () => {
     expect(planForPriceId("price_ess_month")).toBe("essential");
   });
 
+  it("reads the test Stripe account's prices for QA", () => {
+    vi.stubEnv("STRIPE_ESSENTIAL_PLAN_PRICE_ID", "price_live");
+    vi.stubEnv("STRIPE_TEST_ESSENTIAL_PLAN_PRICE_ID", "price_test");
+    vi.stubEnv("STRIPE_TEST_ESSENTIAL_ANNUAL_PRICE_ID", "price_test_year");
+
+    expect(priceIdForPlan("essential", "monthly", "test")).toBe("price_test");
+    expect(priceIdForPlan("essential", "yearly", "test")).toBe(
+      "price_test_year",
+    );
+    expect(planForPriceId("price_test_year", "test")).toBe("essential");
+    // A test price never grants a real plan, nor a real one a test plan.
+    expect(planForPriceId("price_test", "live")).toBeNull();
+    expect(planForPriceId("price_live", "test")).toBeNull();
+  });
+
   it("has no yearly price when it isn't configured", () => {
     vi.stubEnv("STRIPE_PROFESSIONAL_ANNUAL_PRICE_ID", "");
 
@@ -117,12 +132,24 @@ describe("yearly plans", () => {
   });
 
   it("computes the saving of paying yearly", () => {
-    const monthly = { amount: "R$ 79", interval: "mês", cents: 7900, months: 1 };
-    const yearly = { amount: "R$ 790", interval: "ano", cents: 79000, months: 12 };
+    const monthly = {
+      amount: "R$ 79",
+      interval: "mês",
+      cents: 7900,
+      months: 1,
+    };
+    const yearly = {
+      amount: "R$ 790",
+      interval: "ano",
+      cents: 79000,
+      months: 12,
+    };
 
     // 790 instead of 12 × 79 = 948: two months free, about 17%.
     expect(yearlySavingsPercent(monthly, yearly)).toBe(17);
-    expect(yearlySavingsPercent(monthly, { ...yearly, cents: 94800 })).toBeNull();
+    expect(
+      yearlySavingsPercent(monthly, { ...yearly, cents: 94800 }),
+    ).toBeNull();
     expect(yearlySavingsPercent(null, yearly)).toBeNull();
     expect(monthlyEquivalent(yearly).replace(/\u00a0/g, " ")).toBe("R$ 65,83");
   });

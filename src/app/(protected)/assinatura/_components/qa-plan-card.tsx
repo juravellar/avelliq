@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { actionErrorMessage } from "@/lib/action-errors";
-import { PAID_PLAN_IDS, type PlanId,PLANS } from "@/lib/plans";
+import { PAID_PLAN_IDS, type PlanId, PLANS } from "@/lib/plans";
 
 const REAL_PLAN = "real";
 const PLAN_IDS: PlanId[] = ["free", ...PAID_PLAN_IDS];
@@ -23,8 +23,10 @@ const PLAN_IDS: PlanId[] = ["free", ...PAID_PLAN_IDS];
 // paying.
 export function QaPlanCard({
   simulatedPlan,
+  stripeTestReady,
 }: {
   simulatedPlan: PlanId | null;
+  stripeTestReady: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const action = useAction(setQaPlan, {
@@ -44,7 +46,7 @@ export function QaPlanCard({
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           O sistema passa a funcionar como para um cliente nesse plano: limites,
-          bloqueios e avisos. Nada é cobrado e o Stripe não muda.
+          bloqueios e avisos. Escolher aqui não cobra nada nem mexe no Stripe.
         </p>
         <div className="flex items-center gap-2">
           <Select
@@ -73,8 +75,9 @@ export function QaPlanCard({
           )}
         </div>
         <p className="text-muted-foreground">
-          Os botões de assinar abaixo abrem o checkout do Stripe configurado
-          neste ambiente. Em produção a cobrança é real.
+          {stripeTestReady
+            ? "Para testar o pagamento, os botões de assinar abaixo usam o Stripe de teste: use o cartão 4242 4242 4242 4242, com qualquer validade futura e CVC. A assinatura de teste vira o plano simulado, e nada é cobrado."
+            : "O Stripe de teste não está configurado neste ambiente, então os botões de assinar não funcionam para contas QA."}
         </p>
         {error && (
           <p role="alert" className="text-destructive">
