@@ -14,12 +14,11 @@ import {
   sendEmail,
   verificationEmail,
 } from "@/lib/email";
-import { STAFF_PLAN } from "@/lib/plans";
 import {
   loadSessionMemberships,
   sessionBranding,
 } from "@/lib/session-memberships";
-import { isPlanExempt } from "@/lib/support/admin";
+import { sessionPlans } from "@/lib/support/admin";
 import { ACCEPT_TERMS_HEADER, termsAcceptanceForNewUser } from "@/lib/terms";
 
 export const auth = betterAuth({
@@ -57,11 +56,7 @@ export const auth = betterAuth({
       if (!userData) {
         return null as never;
       }
-      // `plan` is what sets the limits everywhere (actions, banners, free
-      // period). Avelliq's team has none; what they really subscribe to stays
-      // in subscribedPlan, for the billing pages.
-      const planExempt = isPlanExempt(userData);
-      const plan = planExempt ? STAFF_PLAN : userData.plan;
+      const { plan, subscribedPlan, planExempt } = sessionPlans(userData);
       const access = resolveClinicAccess(
         memberships.map((membership) => ({
           clinicId: membership.clinicId,
@@ -77,7 +72,7 @@ export const auth = betterAuth({
         user: {
           ...user,
           plan,
-          subscribedPlan: userData.plan,
+          subscribedPlan,
           planExempt,
           subscriptionStatus: userData?.subscriptionStatus,
           subscriptionEndsAt: userData?.subscriptionEndsAt,

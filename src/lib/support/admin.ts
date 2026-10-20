@@ -1,3 +1,5 @@
+import { STAFF_PLAN } from "@/lib/plans";
+
 // Avelliq owners, by the e-mail they sign in with. Listed in
 // SUPPORT_ADMIN_EMAILS (comma-separated) on the server, never in the code: the
 // repository is public.
@@ -51,6 +53,20 @@ const roleOf = (
 // still subscribe; the limits just don't apply to them.
 export const isPlanExempt = (user: StaffCandidate | null | undefined) =>
   roleOf(user) !== null;
+
+// The session's plans: `plan` sets the limits everywhere (actions, banners,
+// free period), and for the team it is the unlimited one; subscribedPlan is
+// what the account really pays for, for the billing pages.
+export const sessionPlans = (
+  user: StaffCandidate & { plan?: string | null },
+) => {
+  const planExempt = isPlanExempt(user);
+  return {
+    plan: planExempt ? STAFF_PLAN : (user.plan ?? null),
+    subscribedPlan: user.plan ?? null,
+    planExempt,
+  };
+};
 
 // Who reads and answers support mail. QA tests the product and doesn't.
 export const isSupportStaff = (user: StaffCandidate | null | undefined) => {

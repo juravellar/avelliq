@@ -7,6 +7,7 @@ import {
   isSupportOwner,
   isSupportStaff,
   rolesManagedBy,
+  sessionPlans,
 } from "./admin";
 
 const owner = { email: "equipe@avelliq.com", emailVerified: true };
@@ -94,6 +95,27 @@ describe("team roles", () => {
     expect(canChangeRole(qa, customer)).toBe(false);
     expect(canChangeRole(customer, customer)).toBe(false);
     expect(canChangeRole(undefined, customer)).toBe(false);
+  });
+
+  it("gives the team the unlimited plan and keeps the one they pay for", () => {
+    expect(sessionPlans({ ...qa, plan: null })).toEqual({
+      plan: "professional",
+      subscribedPlan: null,
+      planExempt: true,
+    });
+    expect(sessionPlans({ ...owner, plan: "essential" })).toEqual({
+      plan: "professional",
+      subscribedPlan: "essential",
+      planExempt: true,
+    });
+    expect(sessionPlans({ ...customer, plan: "essential" })).toEqual({
+      plan: "essential",
+      subscribedPlan: "essential",
+      planExempt: false,
+    });
+    expect(
+      sessionPlans({ ...support, emailVerified: false, plan: null }),
+    ).toEqual({ plan: null, subscribedPlan: null, planExempt: false });
   });
 
   it("ignores roles of unconfirmed e-mails and unknown roles", () => {
