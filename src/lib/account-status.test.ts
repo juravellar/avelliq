@@ -22,6 +22,22 @@ describe("accountStatus", () => {
     ).toEqual({ kind: "payment-failed", planName: "Essencial" });
   });
 
+  it("shows nothing to Avelliq's team, even with a failed payment", () => {
+    expect(
+      accountStatus(
+        {
+          plan: "professional",
+          subscriptionStatus: "past_due",
+          subscriptionEndsAt: "2027-01-20T03:00:00Z",
+          clinic: recentClinic,
+          freePeriodStartsAt: recentStart,
+          planExempt: true,
+        },
+        NOW,
+      ),
+    ).toBeNull();
+  });
+
   it("says when a canceled subscription ends", () => {
     expect(
       accountStatus(

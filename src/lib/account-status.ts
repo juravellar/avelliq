@@ -25,10 +25,13 @@ export const accountStatus = (
     clinicLimit?: number | null;
     overClinicLimit?: boolean;
     clinicChoiceMadeAt?: Date | string | null;
+    planExempt?: boolean;
   },
   now: Date = new Date(),
 ): AccountStatus => {
-  if (!user.clinic) {
+  // Avelliq's team doesn't depend on a plan, so no plan warning applies. The
+  // session's plan isn't the one they pay for either.
+  if (!user.clinic || user.planExempt) {
     return null;
   }
   const paid = isPaidPlan(user.plan);

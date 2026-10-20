@@ -12,3 +12,10 @@ describe("auth user fields", () => {
     }
   });
 });
+
+describe("auth sessions", () => {
+  it("end after 12 hours without use, renewed at most hourly", () => {
+    expect(auth.options.session.expiresIn).toBe(12 * 60 * 60);
+    expect(auth.options.session.updateAge).toBe(60 * 60);
+  });
+});

@@ -113,7 +113,7 @@ const AccountPage = async () => {
           <DeleteAccountCard
             email={user.email}
             clinicCount={user.clinics.length}
-            hasSubscription={isPaidPlan(user.plan)}
+            hasSubscription={isPaidPlan(user.subscribedPlan)}
           />
         </div>
       </PageContent>

@@ -1,3 +1,5 @@
+import { STAFF_PLAN } from "@/lib/plans";
+
 // Avelliq owners, by the e-mail they sign in with. Listed in
 // SUPPORT_ADMIN_EMAILS (comma-separated) on the server, never in the code: the
 // repository is public.
@@ -7,11 +9,13 @@ const supportOwners = () =>
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
 
-export const STAFF_ROLES = ["support", "admin"] as const;
+// In the order the Contas page offers them.
+export const STAFF_ROLES = ["support", "qa", "admin"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export const STAFF_ROLE_NAMES: Record<StaffRole, string> = {
   support: "Suporte",
+  qa: "QA",
   admin: "Admin",
 };
 
@@ -45,9 +49,30 @@ const roleOf = (
   return isStaffRole(user.staffRole) ? user.staffRole : null;
 };
 
-// Who reads and answers support mail: everyone on the team.
-export const isSupportStaff = (user: StaffCandidate | null | undefined) =>
+// Everyone on Avelliq's team uses the whole system without a plan. They can
+// still subscribe; the limits just don't apply to them.
+export const isPlanExempt = (user: StaffCandidate | null | undefined) =>
   roleOf(user) !== null;
+
+// The session's plans: `plan` sets the limits everywhere (actions, banners,
+// free period), and for the team it is the unlimited one; subscribedPlan is
+// what the account really pays for, for the billing pages.
+export const sessionPlans = (
+  user: StaffCandidate & { plan?: string | null },
+) => {
+  const planExempt = isPlanExempt(user);
+  return {
+    plan: planExempt ? STAFF_PLAN : (user.plan ?? null),
+    subscribedPlan: user.plan ?? null,
+    planExempt,
+  };
+};
+
+// Who reads and answers support mail. QA tests the product and doesn't.
+export const isSupportStaff = (user: StaffCandidate | null | undefined) => {
+  const role = roleOf(user);
+  return role !== null && role !== "qa";
+};
 
 // Who sees the Contas page: owners and admins.
 export const canManageAccounts = (user: StaffCandidate | null | undefined) => {
@@ -55,16 +80,16 @@ export const canManageAccounts = (user: StaffCandidate | null | undefined) => {
   return role === "owner" || role === "admin";
 };
 
-// The roles someone may give or take away: owners choose admins and
-// support, admins only support.
+// The roles someone may give or take away: owners choose every role, admins
+// all but admin.
 export const rolesManagedBy = (
   user: StaffCandidate | null | undefined,
 ): StaffRole[] => {
   const role = roleOf(user);
   if (role === "owner") {
-    return ["support", "admin"];
+    return [...STAFF_ROLES];
   }
-  return role === "admin" ? ["support"] : [];
+  return role === "admin" ? ["support", "qa"] : [];
 };
 
 // Whether `viewer` may change `account`'s role at all: never an owner's, and

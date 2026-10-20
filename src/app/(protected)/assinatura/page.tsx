@@ -25,7 +25,9 @@ const SubscriptionPage = async () => {
   if (!session.user.clinic) {
     redirect("/nova-clinica");
   }
-  const currentPlan = resolvePlan(session.user.plan);
+  // The plan actually subscribed to; the usage below follows the limits that
+  // apply, which for Avelliq's team are none.
+  const currentPlan = resolvePlan(session.user.subscribedPlan);
   const [prices, usage] = await Promise.all([
     getPlanPrices(),
     getPlanUsage(
@@ -54,7 +56,12 @@ const SubscriptionPage = async () => {
         {/* Columns follow the content width, not the screen: the sidebar
             takes part of it. */}
         <div className="@container space-y-6">
-          <PlanUsageCard planName={currentPlan.name} usage={usage} />
+          <PlanUsageCard
+            planName={
+              session.user.planExempt ? "da equipe Avelliq" : currentPlan.name
+            }
+            usage={usage}
+          />
           <PlanCards
             plans={Object.values(PLANS)}
             prices={prices}

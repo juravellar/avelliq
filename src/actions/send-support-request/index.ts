@@ -65,7 +65,7 @@ export const sendSupportRequest = actionClient
           account: user
             ? {
                 userId: user.id,
-                plan: resolvePlan(user.plan).name,
+                plan: resolvePlan(user.subscribedPlan).name,
                 clinic: user.clinic?.name ?? null,
               }
             : undefined,

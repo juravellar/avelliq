@@ -29,9 +29,10 @@ const NO_ROLE = "none";
 
 const ROLE_EFFECTS: Record<StaffRole, string> = {
   support:
-    "Passa a ver o Atendimento: lê os e-mails recebidos pelo suporte e responde em nome do Avelliq.",
+    "Passa a ver o Atendimento: lê os e-mails recebidos pelo suporte e responde em nome do Avelliq. Usa o sistema todo sem precisar de plano.",
+  qa: "Usa o sistema todo sem precisar de plano, para testar. Não vê o Atendimento nem esta tela.",
   admin:
-    "Passa a ver o Atendimento e esta tela de contas, onde também escolhe quem é Suporte.",
+    "Passa a ver o Atendimento e esta tela de contas, onde também escolhe quem é Suporte e QA. Usa o sistema todo sem precisar de plano.",
 };
 
 // Chooses an account's role on Avelliq's team, after a confirmation.
@@ -109,7 +110,7 @@ export function RolePicker({
             <AlertDialogDescription>
               {chosen
                 ? ROLE_EFFECTS[chosen]
-                : "A pessoa deixa de ver o Atendimento na hora."}
+                : "A pessoa perde o acesso da equipe na hora e volta aos limites do plano dela."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

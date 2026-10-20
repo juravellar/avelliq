@@ -78,5 +78,8 @@ export const PLANS: Record<PlanId, Plan> = {
 export const resolvePlan = (plan: string | null | undefined): Plan =>
   plan === "essential" || plan === "professional" ? PLANS[plan] : PLANS.free;
 
+// The limits of Avelliq's own team: the unlimited plan, without paying.
+export const STAFF_PLAN: PlanId = "professional";
+
 export const isPaidPlan = (plan: string | null | undefined) =>
   resolvePlan(plan).id !== "free";

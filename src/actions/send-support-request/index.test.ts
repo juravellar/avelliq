@@ -35,7 +35,10 @@ describe("sendSupportRequest", () => {
         id: `user_${Math.random()}`,
         name: "Ana",
         email: "ana@clinica.com",
-        plan: "essential",
+        // `plan` sets the limits (unlimited for Avelliq's team); the e-mail
+        // shows the plan actually subscribed to.
+        plan: "professional",
+        subscribedPlan: "essential",
         clinic: { name: "Clínica Centro" },
       },
     });
