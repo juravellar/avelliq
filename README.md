@@ -161,6 +161,7 @@ Como funciona:
 - **Só contas QA:** um evento do Stripe de teste só altera contas QA. Os de outras contas são ignorados, para que quem tenha a chave de teste não consiga liberar um plano pago para ninguém.
 - **Nunca vira plano pago:** a assinatura de teste grava só o plano simulado da QA (`qa_plan`) e o cliente e a assinatura de teste, em colunas próprias (`stripe_test_customer_id`, `stripe_test_subscription_id`). Por isso uma conta que deixa de ser QA não fica com um plano pago de verdade.
 - **Exclusão de conta:** cancela também as assinaturas de teste.
+- **Mesma conta do Stripe nos dois papéis:** enquanto o Stripe de produção ainda for a área restrita (chaves `sk_test_`), as duas configurações podem apontar para a mesma conta. O checkout marca as assinaturas de QA (`stripeMode: test` nos metadados), e cada webhook só processa as suas. Mesmo assim, cada configuração precisa do seu próprio destino de webhook, com segredo próprio.
 
 ---
 

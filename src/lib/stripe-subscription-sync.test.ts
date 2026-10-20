@@ -365,6 +365,8 @@ describe("syncSubscription with the test Stripe account", () => {
       ...overrides,
     });
 
+  const testMetadata = { userId: "user_1", stripeMode: "test" };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("STRIPE_TEST_ESSENTIAL_PLAN_PRICE_ID", "price_test_essential");
@@ -383,6 +385,7 @@ describe("syncSubscription with the test Stripe account", () => {
     mocks.findUser.mockResolvedValue(qa());
     const a = subscription("sub_test", {
       customer: "cus_test",
+      metadata: testMetadata,
       items: { data: [{ price: { id: "price_test_professional" } }] },
     });
     stripeHas(a, [a]);
@@ -402,6 +405,7 @@ describe("syncSubscription with the test Stripe account", () => {
     );
     const a = subscription("sub_test", {
       customer: "cus_test",
+      metadata: testMetadata,
       status: "canceled",
     });
     stripeHas(a, [a]);
@@ -422,7 +426,10 @@ describe("syncSubscription with the test Stripe account", () => {
       qa({ emailVerified: false }),
     ]) {
       mocks.findUser.mockResolvedValue(account);
-      const a = subscription("sub_test", { customer: "cus_test" });
+      const a = subscription("sub_test", {
+        customer: "cus_test",
+        metadata: testMetadata,
+      });
       stripeHas(a, [a]);
 
       await syncSubscription(stripe, "sub_test", "test");
@@ -430,5 +437,29 @@ describe("syncSubscription with the test Stripe account", () => {
 
     expect(mocks.set).not.toHaveBeenCalled();
     expect(console.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the two webhooks apart while both Stripes are one account", async () => {
+    mocks.findUser.mockResolvedValue(qa());
+    const test = subscription("sub_test", {
+      customer: "cus_test",
+      metadata: testMetadata,
+    });
+    const real = subscription("sub_real", { customer: "cus_test" });
+    stripeHas(test, [test, real]);
+
+    // The real webhook sees the QA's test subscription and leaves it alone.
+    await syncSubscription(stripe, "sub_test", "live");
+    expect(mocks.set).not.toHaveBeenCalled();
+
+    // The test webhook sees a real subscription and leaves it alone too.
+    await syncSubscription(stripe, "sub_real", "test");
+    expect(mocks.set).not.toHaveBeenCalled();
+
+    // Its own subscription counts, never the real one next to it.
+    await syncSubscription(stripe, "sub_test", "test");
+    expect(mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({ stripeTestSubscriptionId: "sub_test" }),
+    );
   });
 });

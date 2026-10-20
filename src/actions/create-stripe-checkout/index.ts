@@ -20,6 +20,7 @@ import {
   billingIdsOf,
   listCustomerSubscriptions,
   retrieveIfExists,
+  TEST_SUBSCRIPTION_METADATA,
 } from "@/lib/stripe-subscription-sync";
 
 const ALREADY_SUBSCRIBED_MESSAGE =
@@ -228,6 +229,7 @@ export const createStripeCheckout = actionClient
         subscription_data: {
           metadata: {
             userId: user.id,
+            ...(mode === "test" ? TEST_SUBSCRIPTION_METADATA : {}),
           },
         },
         line_items: [

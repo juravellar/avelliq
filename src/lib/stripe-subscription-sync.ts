@@ -32,6 +32,14 @@ export const planForSubscription = (
 
 type User = typeof usersTable.$inferSelect;
 
+// Checkout marks the subscriptions it opens for QA. While the real and the
+// test Stripe are the same account (before going live), both webhooks see
+// every subscription, and each must only act on its own.
+export const TEST_SUBSCRIPTION_METADATA = { stripeMode: "test" } as const;
+
+const belongsTo = (subscription: Stripe.Subscription, mode: StripeMode) =>
+  (subscription.metadata?.stripeMode === "test") === (mode === "test");
+
 // Where each Stripe account's customer and subscription are kept.
 export const billingIdsOf = (user: User, mode: StripeMode) =>
   mode === "live"
@@ -137,6 +145,9 @@ export const syncSubscription = async (
   mode: StripeMode = "live",
 ) => {
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  if (!belongsTo(subscription, mode)) {
+    return;
+  }
   const user = await findUserFor(subscription, mode);
   if (!user) {
     // Subscriptions created outside the app on the same Stripe account are
@@ -163,12 +174,14 @@ export const syncSubscription = async (
     if (!latest) {
       return;
     }
-    const candidates = await listCustomerSubscriptions(stripe, customerId);
+    const candidates = (
+      await listCustomerSubscriptions(stripe, customerId)
+    ).filter((candidate) => belongsTo(candidate, mode));
     const billing = billingIdsOf(latest, mode);
     const currentId = billing.subscriptionId;
     if (currentId && !candidates.some(({ id }) => id === currentId)) {
       const current = await retrieveIfExists(stripe, currentId);
-      if (current) {
+      if (current && belongsTo(current, mode)) {
         candidates.push(current);
       }
     }
