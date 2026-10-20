@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  canAnswerSupport,
   canChangeRole,
-  canManageAccounts,
+  canSeeAccounts,
+  canSeeSupportInbox,
+  canSimulatePlan,
   isPlanExempt,
   isSupportOwner,
-  isSupportStaff,
   rolesManagedBy,
   sessionPlans,
 } from "./admin";
@@ -41,8 +43,17 @@ describe("team roles", () => {
   beforeEach(() => vi.stubEnv("SUPPORT_ADMIN_EMAILS", "equipe@avelliq.com"));
   afterEach(() => vi.unstubAllEnvs());
 
-  it("lets the team answer support mail, except QA", () => {
-    expect([owner, admin, support, qa, customer].map(isSupportStaff)).toEqual([
+  const everyone = [owner, admin, support, qa, customer];
+
+  it("shows the Atendimento to the whole team, but QA doesn't answer", () => {
+    expect(everyone.map(canSeeSupportInbox)).toEqual([
+      true,
+      true,
+      true,
+      true,
+      false,
+    ]);
+    expect(everyone.map(canAnswerSupport)).toEqual([
       true,
       true,
       true,
@@ -51,21 +62,33 @@ describe("team roles", () => {
     ]);
   });
 
-  it("frees the whole team from plan limits", () => {
-    expect([owner, admin, support, qa, customer].map(isPlanExempt)).toEqual([
-      true,
+  it("frees the team from plan limits, except QA, who simulates plans", () => {
+    expect(everyone.map(isPlanExempt)).toEqual([
       true,
       true,
       true,
       false,
+      false,
     ]);
-    expect(isPlanExempt({ ...qa, emailVerified: false })).toBe(false);
+    expect(everyone.map(canSimulatePlan)).toEqual([
+      false,
+      false,
+      false,
+      true,
+      false,
+    ]);
+    expect(isPlanExempt({ ...support, emailVerified: false })).toBe(false);
+    expect(canSimulatePlan({ ...qa, emailVerified: false })).toBe(false);
   });
 
-  it("shows the accounts to owners and admins only", () => {
-    expect(
-      [owner, admin, support, qa, customer].map(canManageAccounts),
-    ).toEqual([true, true, false, false, false]);
+  it("shows the accounts to owners, admins and QA", () => {
+    expect(everyone.map(canSeeAccounts)).toEqual([
+      true,
+      true,
+      false,
+      true,
+      false,
+    ]);
   });
 
   it("lets owners choose every role, admins support and QA", () => {
@@ -98,29 +121,52 @@ describe("team roles", () => {
   });
 
   it("gives the team the unlimited plan and keeps the one they pay for", () => {
-    expect(sessionPlans({ ...qa, plan: null })).toEqual({
-      plan: "professional",
-      subscribedPlan: null,
-      planExempt: true,
-    });
     expect(sessionPlans({ ...owner, plan: "essential" })).toEqual({
       plan: "professional",
       subscribedPlan: "essential",
+      simulatedPlan: null,
       planExempt: true,
     });
     expect(sessionPlans({ ...customer, plan: "essential" })).toEqual({
       plan: "essential",
       subscribedPlan: "essential",
+      simulatedPlan: null,
       planExempt: false,
     });
     expect(
       sessionPlans({ ...support, emailVerified: false, plan: null }),
-    ).toEqual({ plan: null, subscribedPlan: null, planExempt: false });
+    ).toEqual({
+      plan: null,
+      subscribedPlan: null,
+      simulatedPlan: null,
+      planExempt: false,
+    });
+  });
+
+  it("gives QA the simulated plan everywhere, or its real one", () => {
+    expect(sessionPlans({ ...qa, plan: null, qaPlan: "essential" })).toEqual({
+      plan: "essential",
+      subscribedPlan: "essential",
+      simulatedPlan: "essential",
+      planExempt: false,
+    });
+    expect(sessionPlans({ ...qa, plan: "professional", qaPlan: null })).toEqual(
+      {
+        plan: "professional",
+        subscribedPlan: "professional",
+        simulatedPlan: null,
+        planExempt: false,
+      },
+    );
+    // A simulated plan left behind after the QA role was removed is ignored.
+    expect(
+      sessionPlans({ ...customer, plan: null, qaPlan: "professional" }),
+    ).toMatchObject({ plan: null, simulatedPlan: null });
   });
 
   it("ignores roles of unconfirmed e-mails and unknown roles", () => {
-    expect(isSupportStaff({ ...admin, emailVerified: false })).toBe(false);
-    expect(canManageAccounts({ ...admin, emailVerified: false })).toBe(false);
-    expect(isSupportStaff({ ...customer, staffRole: "root" })).toBe(false);
+    expect(canSeeSupportInbox({ ...admin, emailVerified: false })).toBe(false);
+    expect(canSeeAccounts({ ...admin, emailVerified: false })).toBe(false);
+    expect(canSeeSupportInbox({ ...customer, staffRole: "root" })).toBe(false);
   });
 });

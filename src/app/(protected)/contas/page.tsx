@@ -24,7 +24,7 @@ import {
 } from "@/lib/support/accounts";
 import {
   canChangeRole,
-  canManageAccounts,
+  canSeeAccounts,
   isSupportOwner,
   rolesManagedBy,
   STAFF_ROLE_NAMES,
@@ -57,7 +57,7 @@ const pageHref = (search: string, page: number) => {
 // support, admins only support. For everyone else the page doesn't exist.
 const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
   const session = await getServerSession();
-  if (!canManageAccounts(session?.user)) {
+  if (!canSeeAccounts(session?.user)) {
     notFound();
   }
   const roles = rolesManagedBy(session?.user);
@@ -76,9 +76,10 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
         <PageHeaderContent>
           <PageTitle>Contas</PageTitle>
           <PageDescription>
-            Todas as contas do Avelliq. A equipe usa o sistema todo sem plano:
-            Suporte também responde o Atendimento, QA só testa, e Admin também
-            vê esta tela e escolhe quem é Suporte e QA.
+            Todas as contas do Avelliq. Principal, Admin e Suporte usam o
+            sistema sem plano; Suporte também responde o Atendimento; QA testa
+            com o plano que escolher e só olha esta tela; Admin escolhe quem é
+            Suporte e QA.
           </PageDescription>
         </PageHeaderContent>
       </PageHeader>

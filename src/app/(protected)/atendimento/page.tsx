@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/page-container";
 import { inClinicTimezone } from "@/helpers/time";
 import { getServerSession } from "@/lib/server-session";
-import { isSupportOwner, isSupportStaff } from "@/lib/support/admin";
+import { canSeeSupportInbox, isSupportOwner } from "@/lib/support/admin";
 import {
   isInboxConfigured,
   isReceivedEmailId,
@@ -44,7 +44,7 @@ const senderOf = (email: ReceivedEmailSummary) =>
 // exist.
 const InboxPage = async ({ searchParams }: InboxPageProps) => {
   const session = await getServerSession();
-  if (!isSupportStaff(session?.user)) {
+  if (!canSeeSupportInbox(session?.user)) {
     notFound();
   }
   // Main accounts see all the domain's mail; the rest of the team only what
