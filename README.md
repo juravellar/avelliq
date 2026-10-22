@@ -8,6 +8,12 @@ Sistema de agendamento para clínicas médicas: cadastro de médicos com dias e 
 
 > 💳 **Os planos pagos usam o modo de testes do Stripe.** Use o cartão `4242 4242 4242 4242`, com qualquer data de validade futura, CVC e CEP. **Não use dados reais de cartão.**
 
+### Do bootcamp ao Avelliq
+
+O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de Agendamentos para Clínicas" da Full Stack Club. Ficou parado por mais de um ano e, em outubro de 2026, foi retomado e virou o Avelliq. Ainda está em construção.
+
+![Antes e depois: o Doutor Agenda de 2025, com uma tabela simples de agendamentos, e o Avelliq de 2026, com um calendário semanal e a marca da clínica. Dados fictícios.](public/avelliq-antes-depois.png)
+
 ---
 
 ## ✨ Funcionalidades
