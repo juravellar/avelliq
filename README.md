@@ -32,7 +32,7 @@ O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de A
   - **Principal** (`SUPPORT_ADMIN_EMAILS`): vê tudo e escolhe quem é Admin, Suporte e QA. Não aparece como cargo no banco e não pode ser tirada pela tela.
   - **Admin:** vê o Atendimento e a tela Contas, e escolhe quem é Suporte e QA. Não pode tornar ninguém Admin nem mudar outro Admin.
   - **Suporte:** vê e responde o Atendimento.
-  - **QA:** testa o sistema. Vê todas as telas, inclusive o Atendimento e a tela Contas, mas não responde clientes nem muda cargos. Segue as regras de plano como um cliente e, em Assinatura, escolhe qual plano simular (Free, Essencial ou Profissional), sem pagar e sem mexer no Stripe.
+  - **QA:** testa o sistema. Vê todas as telas, inclusive o Atendimento e a tela Contas, mas não responde clientes nem muda cargos. Segue as regras de plano como um cliente e, em Assinatura, escolhe qual plano simular (Free, Essencial ou Profissional), sem pagar e sem mexer no Stripe. Para testar o pagamento, os botões de assinar das contas QA usam sempre o Stripe de teste (cartão 4242 4242 4242 4242), e a assinatura de teste vira o plano simulado, nunca um plano pago de verdade.
 - **Planos** Free, Essencial e Profissional, com Stripe Checkout para assinar e o portal do cliente para trocar de plano ou cancelar.
 - **LGPD:** Política de Privacidade e Termos de Uso com aceite registrado, exportação dos dados, exclusão da conta, registro de auditoria e limpeza automática de dados antigos. Detalhes e pendências em [`docs/lgpd`](docs/lgpd/README.md).
 - **Sessão:** quem fica 12 horas sem usar o sistema precisa entrar de novo. Usar o sistema adia esse prazo, renovado no máximo uma vez por hora.
@@ -90,12 +90,15 @@ O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de A
    | `BETTER_AUTH_URL` | URL base da aplicação, por exemplo `http://localhost:3000` |
    | `NEXT_PUBLIC_APP_URL` | URL pública da aplicação, usada nos redirecionamentos do Stripe |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Login com Google |
-   | `STRIPE_SECRET_KEY` | Chave secreta do Stripe (modo de testes). O checkout abre na página hospedada pelo Stripe, sem Stripe.js no app, então a chave pública não é usada |
+   | `STRIPE_SECRET_KEY` | Chave secreta do Stripe que cobra os clientes: a de testes enquanto o sistema não cobra de verdade, depois a real. Contas QA nunca usam esta chave. O checkout abre na página hospedada pelo Stripe, sem Stripe.js no app, então a chave pública não é usada |
    | `STRIPE_ESSENTIAL_PLAN_PRICE_ID` | ID do preço mensal do plano Essencial no Stripe |
    | `STRIPE_PROFESSIONAL_PLAN_PRICE_ID` | ID do preço mensal do plano Profissional no Stripe |
    | `STRIPE_ESSENTIAL_ANNUAL_PRICE_ID`, `STRIPE_PROFESSIONAL_ANNUAL_PRICE_ID` | IDs dos preços anuais (opcionais). Com eles, a página de assinatura mostra a opção Mensal/Anual com a economia calculada. Libere também os preços anuais em **Stripe → Customer portal → Products**, senão quem assina não consegue trocar de plano pelo portal |
    | `STRIPE_WEBHOOK_SECRET` | Segredo do webhook (veja a seção do Stripe abaixo) |
    | `NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL` | Link do portal do cliente do Stripe. No Stripe, configure o link de retorno do portal para `/assinatura` |
+   | `STRIPE_TEST_SECRET_KEY`, `STRIPE_TEST_WEBHOOK_SECRET` | Chave e segredo do webhook do Stripe **de teste**, usados só pelas contas QA (veja "Stripe de teste para contas QA"). Opcionais: sem eles, contas QA não conseguem assinar |
+   | `STRIPE_TEST_ESSENTIAL_PLAN_PRICE_ID`, `STRIPE_TEST_PROFESSIONAL_PLAN_PRICE_ID` (e os `STRIPE_TEST_*_ANNUAL_PRICE_ID`, opcionais) | IDs dos preços no Stripe de teste, com os mesmos nomes dos de produção acrescidos de `TEST_` |
+   | `NEXT_PUBLIC_STRIPE_TEST_CUSTOMER_PORTAL_URL` | Link do portal do cliente no Stripe de teste, para as contas QA |
    | `SUPPORT_EMAIL` | E-mail de suporte e canal de privacidade, mostrado na Política de Privacidade, nos Termos e a quem precisa alterar as clínicas ativas antes dos 30 dias. Use um e-mail do domínio, não um pessoal |
    | `SUPPORT_INBOX` | Caixa que recebe as mensagens do "Falar com a equipe" (opcional; sem ela, vão para `SUPPORT_EMAIL`, o recomendado). Nunca aparece nas páginas, mas um e-mail pessoal aqui tem dois efeitos: quem responder de lá mostra esse endereço ao cliente, e as mensagens não chegam à caixa do domínio recebida pelo Resend (a tela de Atendimento não as vê). Exige `RESEND_API_KEY` e `EMAIL_FROM` |
    | `RESEND_RECEIVING_API_KEY` | Chave do Resend com permissão **Full access**, usada só pela tela de Atendimento para ler os e-mails recebidos (a chave de envio, `RESEND_API_KEY`, pode continuar só com envio). Opcional |
@@ -140,6 +143,25 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 ```
 
 O comando `stripe listen` mostra um segredo `whsec_...`. Coloque esse valor em `STRIPE_WEBHOOK_SECRET` no `.env`.
+
+### Stripe de teste para contas QA
+
+Clientes, contas principais, Admin e Suporte pagam pelo Stripe configurado em `STRIPE_SECRET_KEY`. Contas QA pagam sempre pelo Stripe **de teste**, mesmo depois que a produção passar a usar as chaves reais. Assim elas testam o checkout, o portal e as trocas de plano com cartões de teste, sem cobrança.
+
+Para configurar, no painel do Stripe em **modo de teste**:
+
+1. Copie a chave secreta (`sk_test_...`) para `STRIPE_TEST_SECRET_KEY`.
+2. Crie os mesmos produtos e preços da produção e coloque os IDs em `STRIPE_TEST_*_PRICE_ID`.
+3. Ative o portal do cliente, com o link de retorno para `/assinatura`, e coloque o link em `NEXT_PUBLIC_STRIPE_TEST_CUSTOMER_PORTAL_URL`.
+4. Crie um webhook para o **mesmo** endereço da produção (`/api/stripe/webhook`), com os mesmos eventos (`customer.subscription.*` e `invoice.paid`), e coloque o segredo em `STRIPE_TEST_WEBHOOK_SECRET`.
+
+Como funciona:
+
+- **Webhook:** o endpoint confere a assinatura de cada evento com os dois segredos para saber de qual Stripe ele veio.
+- **Só contas QA:** um evento do Stripe de teste só altera contas QA. Os de outras contas são ignorados, para que quem tenha a chave de teste não consiga liberar um plano pago para ninguém.
+- **Nunca vira plano pago:** a assinatura de teste grava só o plano simulado da QA (`qa_plan`) e o cliente e a assinatura de teste, em colunas próprias (`stripe_test_customer_id`, `stripe_test_subscription_id`). Por isso uma conta que deixa de ser QA não fica com um plano pago de verdade.
+- **Exclusão de conta:** cancela também as assinaturas de teste.
+- **Mesma conta do Stripe nos dois papéis:** enquanto o Stripe de produção ainda for a área restrita (chaves `sk_test_`), as duas configurações podem apontar para a mesma conta. O checkout marca as assinaturas de QA (`stripeMode: test` nos metadados), e cada webhook só processa as suas. Mesmo assim, cada configuração precisa do seu próprio destino de webhook, com segredo próprio.
 
 ---
 

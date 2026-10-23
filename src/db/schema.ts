@@ -51,6 +51,11 @@ export const usersTable = pgTable("users", {
   // The plan a QA account tests with instead of its own, without paying.
   // Ignored for anyone else; null means its real plan.
   qaPlan: text("qa_plan"),
+  // A QA account's customer and subscription in the test Stripe account,
+  // kept apart so test billing never mixes with real billing. A test
+  // subscription only ever sets qaPlan, never plan.
+  stripeTestCustomerId: text("stripe_test_customer_id"),
+  stripeTestSubscriptionId: text("stripe_test_subscription_id"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
 });

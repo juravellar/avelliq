@@ -17,7 +17,10 @@ import {
   yearlySavingsPercent,
 } from "@/lib/plan-price";
 import type { Plan, PlanId } from "@/lib/plans";
+import { customerPortalUrl } from "@/lib/stripe-mode";
 import { cn } from "@/lib/utils";
+
+import { useSessionUser } from "../../_components/session-provider";
 
 const STRIPE_CHECKOUT_ORIGIN = "https://checkout.stripe.com";
 
@@ -44,6 +47,8 @@ export function PlanCard({
   className,
 }: PlanCardProps) {
   const router = useRouter();
+  // QA accounts manage their test subscription in the test portal.
+  const { stripeMode } = useSessionUser();
   const createStripeCheckoutAction = useAction(createStripeCheckout, {
     onSuccess: ({ data }) => {
       // Only ever leave the app for Stripe's own checkout page.
@@ -78,9 +83,7 @@ export function PlanCard({
   // Plan changes and cancellations of an existing subscription go through the
   // Stripe customer portal, which handles proration and the end of the period.
   const openCustomerPortal = () => {
-    router.push(
-      `${process.env.NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL}?prefilled_email=${encodeURIComponent(userEmail)}`,
-    );
+    router.push(customerPortalUrl(stripeMode, userEmail));
   };
 
   const action = (() => {
@@ -117,7 +120,7 @@ export function PlanCard({
       className={cn(
         "relative flex flex-col",
         recommended && !isCurrent && "border-primary ring-primary ring-1",
-        isCurrent && "border-success ring-1 ring-success",
+        isCurrent && "border-success ring-success ring-1",
         className,
       )}
     >
@@ -126,24 +129,26 @@ export function PlanCard({
       )}
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-2xl font-bold text-foreground">{plan.name}</h3>
+          <h3 className="text-foreground text-2xl font-bold">{plan.name}</h3>
           {isCurrent &&
             (subscriptionNotice?.pastDue || subscriptionNotice?.endsOn ? (
-              <Badge className="shrink-0 bg-warning-muted text-warning-foreground hover:bg-warning-muted">
+              <Badge className="bg-warning-muted text-warning-foreground hover:bg-warning-muted shrink-0">
                 {subscriptionNotice.pastDue
                   ? "Pagamento pendente"
                   : "Cancelada"}
               </Badge>
             ) : (
-              <Badge className="shrink-0 bg-success-muted text-success-foreground hover:bg-success-muted">
+              <Badge className="bg-success-muted text-success-foreground hover:bg-success-muted shrink-0">
                 Atual
               </Badge>
             ))}
         </div>
         {/* Two lines tall on every card, so the prices line up. */}
-        <p className="text-muted-foreground @4xl:min-h-12">{plan.description}</p>
+        <p className="text-muted-foreground @4xl:min-h-12">
+          {plan.description}
+        </p>
         {isCurrent && subscriptionNotice?.endsOn && (
-          <p className="text-sm text-warning-foreground">
+          <p className="text-warning-foreground text-sm">
             Acesso até {subscriptionNotice.endsOn}. Depois disso, a conta volta
             para o Free.
           </p>
@@ -159,7 +164,7 @@ export function PlanCard({
           </div>
         ) : plan.id === "free" ? (
           <div className="min-h-16">
-            <span className="text-3xl font-bold text-foreground">Grátis</span>
+            <span className="text-foreground text-3xl font-bold">Grátis</span>
             <p className="text-muted-foreground text-sm">
               Sem cartão de crédito.
             </p>
@@ -168,11 +173,11 @@ export function PlanCard({
           price && (
             <div className="min-h-16">
               <div className="flex items-baseline">
-                <span className="text-3xl font-bold text-foreground">
+                <span className="text-foreground text-3xl font-bold">
                   {price.amount}
                 </span>
                 {price.interval && (
-                  <span className="ml-1 text-muted-foreground">
+                  <span className="text-muted-foreground ml-1">
                     / {price.interval}
                   </span>
                 )}
@@ -198,18 +203,18 @@ export function PlanCard({
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col">
-        <div className="flex-1 space-y-4 border-t border-border pt-6">
+        <div className="border-border flex-1 space-y-4 border-t pt-6">
           {plan.features.map((feature) => (
             <div key={feature} className="flex items-start">
-              <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-success" />
-              <p className="ml-3 text-muted-foreground">{feature}</p>
+              <CheckCircle2 className="text-success h-5 w-5 flex-shrink-0" />
+              <p className="text-muted-foreground ml-3">{feature}</p>
             </div>
           ))}
         </div>
 
         <div className="mt-8 min-h-10">
           {plan.id === "free" && !isCurrent && subscriptionNotice?.endsOn && (
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-center text-sm">
               A conta volta para o Free em {subscriptionNotice.endsOn}.
             </p>
           )}

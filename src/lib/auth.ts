@@ -18,6 +18,7 @@ import {
   loadSessionMemberships,
   sessionBranding,
 } from "@/lib/session-memberships";
+import { stripeModeFor } from "@/lib/stripe-mode";
 import { sessionPlans } from "@/lib/support/admin";
 import { ACCEPT_TERMS_HEADER, termsAcceptanceForNewUser } from "@/lib/terms";
 
@@ -87,6 +88,7 @@ export const auth = betterAuth({
           clinicChoiceChangedAt: userData?.clinicChoiceChangedAt ?? null,
           termsVersion: userData?.termsVersion ?? null,
           staffRole: userData?.staffRole ?? null,
+          stripeMode: stripeModeFor(userData),
           branding: sessionBranding(memberships, access.active?.id),
         },
         session,

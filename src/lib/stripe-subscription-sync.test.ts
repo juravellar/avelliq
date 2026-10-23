@@ -350,3 +350,116 @@ describe("syncSubscription", () => {
     );
   });
 });
+
+describe("syncSubscription with the test Stripe account", () => {
+  const qa = (overrides: Record<string, unknown> = {}) =>
+    user({
+      email: "qa@avelliq.com",
+      emailVerified: true,
+      staffRole: "qa",
+      plan: null,
+      stripeSubscriptionId: null,
+      stripeCustomerId: null,
+      stripeTestCustomerId: "cus_test",
+      stripeTestSubscriptionId: null,
+      ...overrides,
+    });
+
+  const testMetadata = { userId: "user_1", stripeMode: "test" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("STRIPE_TEST_ESSENTIAL_PLAN_PRICE_ID", "price_test_essential");
+    vi.stubEnv(
+      "STRIPE_TEST_PROFESSIONAL_PLAN_PRICE_ID",
+      "price_test_professional",
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("sets QA's simulated plan, never the real one", async () => {
+    mocks.findUser.mockResolvedValue(qa());
+    const a = subscription("sub_test", {
+      customer: "cus_test",
+      metadata: testMetadata,
+      items: { data: [{ price: { id: "price_test_professional" } }] },
+    });
+    stripeHas(a, [a]);
+
+    await syncSubscription(stripe, "sub_test", "test");
+
+    expect(mocks.set).toHaveBeenCalledWith({
+      qaPlan: "professional",
+      stripeTestSubscriptionId: "sub_test",
+      stripeTestCustomerId: "cus_test",
+    });
+  });
+
+  it("puts QA back on its real plan when the test subscription ends", async () => {
+    mocks.findUser.mockResolvedValue(
+      qa({ qaPlan: "essential", stripeTestSubscriptionId: "sub_test" }),
+    );
+    const a = subscription("sub_test", {
+      customer: "cus_test",
+      metadata: testMetadata,
+      status: "canceled",
+    });
+    stripeHas(a, [a]);
+
+    await syncSubscription(stripe, "sub_test", "test");
+
+    expect(mocks.set).toHaveBeenCalledWith({
+      qaPlan: null,
+      stripeTestSubscriptionId: null,
+      stripeTestCustomerId: "cus_test",
+    });
+  });
+
+  it("ignores test subscriptions of accounts that aren't QA", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const account of [
+      user({ email: "cliente@x.com", emailVerified: true, staffRole: null }),
+      qa({ emailVerified: false }),
+    ]) {
+      mocks.findUser.mockResolvedValue(account);
+      const a = subscription("sub_test", {
+        customer: "cus_test",
+        metadata: testMetadata,
+      });
+      stripeHas(a, [a]);
+
+      await syncSubscription(stripe, "sub_test", "test");
+    }
+
+    expect(mocks.set).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the two webhooks apart while both Stripes are one account", async () => {
+    mocks.findUser.mockResolvedValue(qa());
+    const test = subscription("sub_test", {
+      customer: "cus_test",
+      metadata: testMetadata,
+    });
+    const real = subscription("sub_real", { customer: "cus_test" });
+    stripeHas(test, [test, real]);
+
+    // The real webhook sees the QA's test subscription and leaves it alone.
+    await syncSubscription(stripe, "sub_test", "live");
+    expect(mocks.set).not.toHaveBeenCalled();
+
+    // The test webhook sees a real subscription and leaves it alone too.
+    await syncSubscription(stripe, "sub_real", "test");
+    expect(mocks.set).not.toHaveBeenCalled();
+
+    // Its own subscription counts, never the real one next to it.
+    await syncSubscription(stripe, "sub_test", "test");
+    expect(mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({ stripeTestSubscriptionId: "sub_test" }),
+    );
+  });
+});

@@ -1,5 +1,5 @@
 import { and, eq, inArray, ne } from "drizzle-orm";
-import Stripe from "stripe";
+import type Stripe from "stripe";
 
 import { db } from "@/db";
 import type { Transaction } from "@/db/clinic-lock";
@@ -11,6 +11,8 @@ import {
   usersTable,
   usersToClinicsTable,
 } from "@/db/schema";
+import { stripeClient } from "@/lib/stripe-client";
+import type { StripeMode } from "@/lib/stripe-mode";
 import { listCustomerSubscriptions } from "@/lib/stripe-subscription-sync";
 
 /**
@@ -81,10 +83,11 @@ const BILLABLE_STATUSES = new Set<Stripe.Subscription.Status>([
 ]);
 
 /** Cancels, immediately, every subscription that could still charge. */
-export const cancelBillableSubscriptions = async (customerId: string) => {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-    apiVersion: "2025-05-28.basil",
-  });
+export const cancelBillableSubscriptions = async (
+  customerId: string,
+  mode: StripeMode = "live",
+) => {
+  const stripe = stripeClient(mode);
   const subscriptions = await listCustomerSubscriptions(stripe, customerId);
   for (const subscription of subscriptions) {
     if (BILLABLE_STATUSES.has(subscription.status)) {
