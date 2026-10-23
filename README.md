@@ -8,6 +8,8 @@ Sistema de agendamento para clínicas médicas: cadastro de médicos com dias e 
 
 > 💳 **Os planos pagos usam o modo de testes do Stripe.** Use o cartão `4242 4242 4242 4242`, com qualquer data de validade futura, CVC e CEP. **Não use dados reais de cartão.**
 
+> 🧪 **Vai testar o sistema?** Comece pelo [Guia de testes (QA)](#-guia-de-testes-qa): ele explica, sem precisar ler código, o que testar e o resultado esperado.
+
 ### Do bootcamp ao Avelliq
 
 O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de Agendamentos para Clínicas" da Full Stack Club. Ficou parado por mais de um ano e, em outubro de 2026, foi retomado e virou o Avelliq. Ainda está em construção.
@@ -19,6 +21,7 @@ O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de A
 ## ✨ Funcionalidades
 
 - **Autenticação** com e-mail e senha ou conta Google ([Better Auth](https://www.better-auth.com)), com recuperação de senha por e-mail. Em Minha conta dá para alterar a senha, e quem entrou pelo Google pode criar uma para também entrar com e-mail e senha.
+- **E-mails com a cara do Avelliq:** confirmação de e-mail, redefinição de senha, respostas do Atendimento e mensagens do formulário de ajuda saem com o mesmo layout (logo, cartão branco com a faixa azul, botão e rodapé), feito com tabelas e estilos inline para funcionar no Gmail e no Outlook. Todo e-mail tem também a versão em texto puro. O layout fica em [`src/lib/email.ts`](src/lib/email.ts).
 - **Clínica:** cada usuário trabalha dentro da sua clínica, e os dados de uma clínica não são visíveis para outra.
 - **Médicos:** especialidade, valor da consulta, dias da semana e horário de atendimento.
 - **Pacientes:** cadastro e listagem. Além dos dados básicos, a clínica pode registrar data de nascimento, CPF, endereço (preenchido pelo CEP), convênio, contato de emergência e observações administrativas.
@@ -27,7 +30,12 @@ O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de A
 - **Marca da clínica (white label):** em Configurações da clínica, cada clínica envia o próprio logo (PNG, JPG ou WebP, reduzido para 128 px e guardado no banco) e escolhe a cor principal. O menu passa a mostrar a marca da clínica e os botões usam a cor dela, com o texto em branco ou preto conforme o contraste.
 - **Tema claro e escuro:** segue o tema do sistema ou a escolha feita no menu do rodapé (Tema).
 - **Ajuda no app:** um botão "Ajuda" no canto da tela responde na hora às dúvidas mais comuns (planos, cadastros, agendamentos, conta), por palavras-chave, sem IA. Quando a resposta não resolve, "Falar com a equipe" abre um formulário que envia a mensagem por e-mail, com o contexto da conta e "responder para" o e-mail de quem escreveu. As respostas ficam em [`src/lib/support/answers.ts`](src/lib/support/answers.ts).
-- **Atendimento (equipe do Avelliq):** em `/atendimento`, visível só para a equipe do Avelliq (contas principais, Admin, Suporte e QA, que só lê), a caixa de entrada do domínio (e-mails para o `sac@` e mensagens do formulário de ajuda) lida pela API de recebimento do Resend. Cada e-mail pode ser respondido ali mesmo: a resposta sai do `SUPPORT_EMAIL`, na mesma conversa (com a cadeia de `References` do original), citando só o texto da pessoa: nas mensagens do formulário, os dados internos da conta não voltam para o cliente. E-mails de endereços do próprio Avelliq não podem ser respondidos. E-mails em HTML aparecem isolados, sem scripts, sem imagens externas e com os links desativados, para que o remetente não saiba que o e-mail foi aberto. As contas principais veem tudo o que chega ao domínio; Admin e Suporte veem e respondem só o que foi enviado ao `SUPPORT_EMAIL` ou ao `SUPPORT_INBOX`. Mensagens só contam como "Formulário" quando vêm do `EMAIL_FROM`, e cada resposta fica no registro de auditoria com quem a enviou.
+- **Atendimento (equipe do Avelliq):** em `/atendimento`, a caixa de entrada do domínio: e-mails enviados para o `sac@` e mensagens do formulário de ajuda.
+  - **Quem vê:** só a equipe do Avelliq. As contas principais veem tudo o que chega ao domínio. Admin e Suporte veem e respondem só o que foi enviado ao `SUPPORT_EMAIL` ou ao `SUPPORT_INBOX`. QA vê, mas não responde.
+  - **Responder:** a resposta sai do `SUPPORT_EMAIL`, na mesma conversa do e-mail original, e cita só o texto da pessoa. Nas mensagens do formulário, os dados internos da conta não voltam para o cliente. E-mails vindos de endereços do próprio Avelliq não podem ser respondidos.
+  - **Segurança:** e-mails em HTML aparecem isolados, sem scripts, sem imagens externas e com os links desativados, para que o remetente não saiba que o e-mail foi aberto.
+  - **Registro:** cada resposta fica no registro de auditoria com quem a enviou. Uma mensagem só aparece como "Formulário" quando vem do `EMAIL_FROM`.
+  - **Por dentro:** os e-mails são lidos pela API de recebimento do Resend, e a resposta mantém a cadeia de `References` do original.
 - **Contas e cargos da equipe:** em `/contas`, a lista de todas as contas do Avelliq com busca por nome ou e-mail, plano, clínicas e forma de entrar. Ali se escolhe o cargo de cada pessoa da equipe; só contas com e-mail confirmado entram na equipe, e cada mudança fica no registro de auditoria com quem a fez. Principal, Admin e Suporte não precisam de plano: usam o sistema sem limites e sem o fim do período gratuito. A tela Assinatura continua mostrando os planos, e quem quiser pode assinar.
   - **Principal** (`SUPPORT_ADMIN_EMAILS`): vê tudo e escolhe quem é Admin, Suporte e QA. Não aparece como cargo no banco e não pode ser tirada pela tela.
   - **Admin:** vê o Atendimento e a tela Contas, e escolhe quem é Suporte e QA. Não pode tornar ninguém Admin nem mudar outro Admin.
@@ -55,6 +63,51 @@ O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de A
 - **Várias clínicas:** o seletor no rodapé do menu troca a clínica aberta; cada clínica tem seus próprios médicos, pacientes e agendamentos. Em **Minhas clínicas**, quem tem mais clínicas do que o plano permite (depois de um downgrade) escolhe quais continuam ativas; as outras ficam só leitura, sem perder dados. A primeira escolha é livre e, depois, vale uma alteração a cada 30 dias; para mais, o usuário fala com o suporte.
 - **Fim do Free:** 3 meses depois da criação da clínica, a conta fica só leitura. Dá para ver os dados, mas cadastrar, editar e excluir exige um plano pago. Clínicas criadas antes dessa regra contam os 3 meses a partir de 15/10/2026. O prazo é controlado pelo app, não pelo Stripe.
 
+## 🧪 Guia de testes (QA)
+
+Esta seção é para quem testa o Avelliq pelo navegador, sem precisar ler código.
+
+### Antes de começar
+
+1. **Crie uma conta** em [www.avelliq.com.br](https://www.avelliq.com.br) e confirme o e-mail pelo link recebido.
+2. **Peça o cargo de QA** a um Admin ou a uma conta principal. Eles dão o cargo na tela **Contas**. Só contas com e-mail confirmado podem receber cargo.
+3. **Recarregue a página.** O cargo pode levar até 5 minutos para aparecer.
+
+**O que QA pode fazer:**
+
+- Ver todas as telas, inclusive **Atendimento** e **Contas**. QA não responde clientes nem muda cargos.
+- Testar os planos como um cliente: em **Assinatura**, o cartão **Simular plano (conta QA)** escolhe Free, Essencial ou Profissional. O sistema passa a aplicar os limites, bloqueios e avisos desse plano. Nada é cobrado. Para voltar, escolha **Meu plano de verdade**.
+
+**Regras para os testes:**
+
+- **Dados fictícios:** use só nomes, e-mails, CPFs e telefones inventados. Nunca cadastre dados reais de pacientes.
+- **Pagamento:** se testar o checkout do Stripe, use só o cartão de teste `4242 4242 4242 4242`.
+- **Bugs:** ao reportar um bug, descreva o passo a passo, o resultado esperado e o resultado obtido, e anexe um print. Não coloque senhas nem dados pessoais no relato.
+
+### Roteiro de testes
+
+| Área | Como testar | Resultado esperado |
+|---|---|---|
+| Cadastro e e-mail | Crie uma conta com e-mail e senha | Chega um e-mail "Confirme seu email" com o botão **Confirmar meu email**. A conta só entra depois de confirmar |
+| Esqueci minha senha | Em **Entrar**, use "Esqueci minha senha" | Chega um e-mail com o botão **Criar uma nova senha**. O link vale por 1 hora. Depois de trocar a senha, os outros aparelhos saem da conta |
+| Login com Google | Entre com uma conta Google | Entra sem pedir senha. Em **Minha conta** dá para criar uma senha |
+| Sessão | Fique 12 horas sem usar o sistema | Pede para entrar de novo |
+| Médicos | Cadastre um médico com dias e horário de atendimento | Ele aparece na lista e nos agendamentos |
+| Pacientes | Cadastre um paciente e preencha o CEP | O endereço é preenchido sozinho. Dois pacientes da mesma clínica não podem ter o mesmo CPF |
+| Agendamentos | Crie uma consulta | Só aparecem horários dentro do expediente do médico e ainda livres. O mesmo horário do mesmo médico não pode ser marcado duas vezes |
+| Calendário | Em **Agendamentos**, troque para **Calendário** | A semana mostra as consultas nos horários certos (horário de Brasília) |
+| Dashboard | Abra o **Dashboard** | Faturamento, número de consultas e agendamentos do dia batem com o que foi cadastrado |
+| Limites do plano | Simule o Free e cadastre mais de 1 médico, 20 pacientes ou 40 consultas no mês | No limite, o botão abre um aviso explicando o motivo e o caminho para o plano maior. Veja a tabela de [Planos](#-planos) |
+| Várias clínicas | Simule o Essencial e crie 2 clínicas | O seletor no rodapé do menu troca de clínica, e os dados de uma clínica não aparecem na outra |
+| Downgrade | Simule o Profissional, crie 3 clínicas e depois simule o Essencial | **Minhas clínicas** pede para escolher quais 2 continuam ativas. As outras ficam só leitura, sem perder dados |
+| Marca da clínica | Em **Configurações da clínica**, envie um logo e escolha uma cor | O menu mostra o logo, e os botões usam a cor escolhida com o texto legível |
+| Tema | No menu do rodapé, troque o tema | Claro e escuro funcionam em todas as telas |
+| Ajuda | Clique em **Ajuda** e digite uma dúvida | Aparece uma resposta pronta. "Falar com a equipe" envia a mensagem, que chega no **Atendimento** |
+| LGPD | Em **Minha conta**, use **Baixar meus dados** e **Excluir conta** | O download traz os dados da conta. A exclusão apaga a conta e encerra a sessão |
+| Celular | Repita os fluxos principais com a tela do celular | Nada fica cortado e não aparece rolagem para o lado |
+
+**Fim do período gratuito:** o Free vira só leitura 3 meses depois da criação da clínica, e esse prazo não dá para adiantar pela tela. Para testar esse caso, peça a quem desenvolve para ajustar a data da clínica num banco de testes.
+
 ## 🚀 Tecnologias
 
 | Área | Ferramentas |
@@ -81,14 +134,18 @@ O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de A
    npm install
    ```
 
-2. Crie um arquivo `.env` na raiz com as variáveis abaixo.
+2. Copie o `.env.example` para `.env` e preencha as variáveis abaixo:
+
+   ```bash
+   cp .env.example .env
+   ```
 
    | Variável | Para quê |
    |---|---|
    | `DATABASE_URL` | Conexão com o PostgreSQL |
    | `BETTER_AUTH_SECRET` | Chave usada para assinar as sessões (gere uma string aleatória longa) |
    | `BETTER_AUTH_URL` | URL base da aplicação, por exemplo `http://localhost:3000` |
-   | `NEXT_PUBLIC_APP_URL` | URL pública da aplicação, usada nos redirecionamentos do Stripe |
+   | `NEXT_PUBLIC_APP_URL` | URL pública da aplicação, usada nos redirecionamentos do Stripe e nos links e no logo dos e-mails |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Login com Google |
    | `STRIPE_SECRET_KEY` | Chave secreta do Stripe (modo de testes). O checkout abre na página hospedada pelo Stripe, sem Stripe.js no app, então a chave pública não é usada |
    | `STRIPE_ESSENTIAL_PLAN_PRICE_ID` | ID do preço mensal do plano Essencial no Stripe |
