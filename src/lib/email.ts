@@ -21,15 +21,24 @@ const BORDER = "#E6E6EE";
 const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
 
+const PRODUCTION_URL = "https://www.avelliq.com.br";
+
+// Always from production: a preview deployment behind Vercel's login would
+// show the logo as a broken image.
+const LOGO_URL = `${PRODUCTION_URL}/apple-icon.png`;
+
 const appUrl = () =>
-  (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.avelliq.com.br").replace(
-    /\/$/,
-    "",
-  );
+  (process.env.NEXT_PUBLIC_APP_URL ?? PRODUCTION_URL).replace(/\/$/, "");
+
+// Gmail and Apple Mail fill the inbox preview with whatever text follows the
+// preview line; these invisible characters take that space instead.
+const PREVIEW_PADDING = "&#847;&zwnj;&nbsp;".repeat(60);
 
 // Email clients ignore <style> and modern CSS, so the layout is tables with
 // inline styles. The header logo is a PNG (Gmail drops SVG) with the name
 // beside it as text, so it still reads as Avelliq when images are blocked.
+// Outlook on Windows ignores max-width, hence the fixed-width table only it
+// sees (the [if mso] comments).
 // `body` is trusted HTML: callers escape what came from users.
 const emailLayout = ({
   preview,
@@ -61,13 +70,14 @@ const emailLayout = ({
 <meta name="supported-color-schemes" content="light">
 </head>
 <body style="margin:0;padding:0;background:#F4F5FA">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preview)}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preview)}${PREVIEW_PADDING}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5FA">
 <tr><td align="center" style="padding:32px 16px">
+<!--[if mso]><table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px">
 <tr><td style="padding:0 4px 20px">
 <a href="${url}" style="text-decoration:none"><table role="presentation" cellpadding="0" cellspacing="0"><tr>
-<td style="vertical-align:middle"><img src="${url}/apple-icon.png" width="32" height="32" alt="" style="display:block;border:0;border-radius:7px"></td>
+<td style="vertical-align:middle"><img src="${LOGO_URL}" width="32" height="32" alt="" style="display:block;border:0;border-radius:7px"></td>
 <td style="vertical-align:middle;padding-left:10px;font-family:${FONT};font-size:20px;font-weight:700;letter-spacing:-0.2px;color:${INK}">Avelliq</td>
 </tr></table></a>
 </td></tr>
@@ -79,6 +89,7 @@ Avelliq · Agendamento para clínicas<br>
 <a href="${url}" style="color:${MUTED}">${escapeHtml(url.replace(/^https?:\/\//, ""))}</a>
 </td></tr>
 </table>
+<!--[if mso]></td></tr></table><![endif]-->
 </td></tr>
 </table>
 </body>

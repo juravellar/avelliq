@@ -50,14 +50,27 @@ describe("email", () => {
     );
   });
 
-  it("puts the link in a button and spelled out, with the logo from the app URL", () => {
-    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://www.avelliq.com.br/");
+  it("puts the link in a button and spelled out", () => {
     const { html } = verificationEmail("https://x/verify?token=a&b=1");
     expect(
       html.match(/href="https:\/\/x\/verify\?token=a&amp;b=1"/g),
     ).toHaveLength(2);
     expect(html).toContain("Confirmar meu email");
+  });
+
+  it("links to the app URL but always loads the logo from production", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://preview.vercel.app/");
+    const { html } = verificationEmail("https://x");
+    expect(html).toContain('href="https://preview.vercel.app"');
     expect(html).toContain('src="https://www.avelliq.com.br/apple-icon.png"');
+  });
+
+  it("keeps the card at 560px in Outlook, which ignores max-width", () => {
+    const { html } = verificationEmail("https://x");
+    expect(html).toContain(
+      '<!--[if mso]><table role="presentation" width="560"',
+    );
+    expect(html).toContain("<!--[if mso]></td></tr></table><![endif]-->");
   });
 
   it("escapes support messages inside the layout", () => {
