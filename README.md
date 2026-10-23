@@ -145,7 +145,7 @@ Esta seção é para quem testa o Avelliq pelo navegador, sem precisar ler códi
    | `DATABASE_URL` | Conexão com o PostgreSQL |
    | `BETTER_AUTH_SECRET` | Chave usada para assinar as sessões (gere uma string aleatória longa) |
    | `BETTER_AUTH_URL` | URL base da aplicação, por exemplo `http://localhost:3000` |
-   | `NEXT_PUBLIC_APP_URL` | URL pública da aplicação, usada nos redirecionamentos do Stripe e nos links e no logo dos e-mails |
+   | `NEXT_PUBLIC_APP_URL` | URL pública da aplicação, usada nos redirecionamentos do Stripe e nos links dos e-mails (o logo dos e-mails vem sempre de www.avelliq.com.br) |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Login com Google |
    | `STRIPE_SECRET_KEY` | Chave secreta do Stripe (modo de testes). O checkout abre na página hospedada pelo Stripe, sem Stripe.js no app, então a chave pública não é usada |
    | `STRIPE_ESSENTIAL_PLAN_PRICE_ID` | ID do preço mensal do plano Essencial no Stripe |

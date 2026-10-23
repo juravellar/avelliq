@@ -27,8 +27,9 @@ const PRODUCTION_URL = "https://www.avelliq.com.br";
 // show the logo as a broken image.
 const LOGO_URL = `${PRODUCTION_URL}/apple-icon.png`;
 
+// `||`, not `??`: an empty variable (as .env.example leaves it) means unset.
 const appUrl = () =>
-  (process.env.NEXT_PUBLIC_APP_URL ?? PRODUCTION_URL).replace(/\/$/, "");
+  (process.env.NEXT_PUBLIC_APP_URL || PRODUCTION_URL).replace(/\/$/, "");
 
 // Gmail and Apple Mail fill the inbox preview with whatever text follows the
 // preview line; these invisible characters take that space instead.

@@ -65,6 +65,13 @@ describe("email", () => {
     expect(html).toContain('src="https://www.avelliq.com.br/apple-icon.png"');
   });
 
+  it("falls back to production when the app URL is empty", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    const { html } = verificationEmail("https://x");
+    expect(html).not.toContain('href=""');
+    expect(html).toContain('href="https://www.avelliq.com.br"');
+  });
+
   it("keeps the card at 560px in Outlook, which ignores max-width", () => {
     const { html } = verificationEmail("https://x");
     expect(html).toContain(
