@@ -213,7 +213,9 @@ export default function SupportPanel({
       role="dialog"
       aria-modal="false"
       aria-label="Ajuda do Avelliq"
-      className="bg-background animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 flex h-[min(560px,calc(100dvh-6rem))] w-[min(380px,calc(100vw-2rem))] origin-bottom-right flex-col overflow-hidden rounded-2xl border shadow-2xl duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
+      // On phones the panel fills the screen and closes from its own header,
+      // so the floating button can't be tapped by mistake next to "Enviar".
+      className="bg-background animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 flex origin-bottom-right flex-col overflow-hidden shadow-2xl duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] max-sm:fixed max-sm:inset-0 max-sm:h-dvh max-sm:w-full sm:h-[min(560px,calc(100dvh-6rem))] sm:w-[min(380px,calc(100vw-2rem))] sm:rounded-2xl sm:border"
     >
       <header className="bg-avelliq text-avelliq-foreground flex items-center gap-3 px-4 py-3">
         {view === "tickets" || view === "ticket" ? (
@@ -249,7 +251,7 @@ export default function SupportPanel({
           <div
             ref={listRef}
             aria-live="polite"
-            className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
+            className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4"
           >
             {messages.map((message) => (
               <MessageBubble
@@ -492,7 +494,7 @@ function HumanForm({
       onSubmit={form.handleSubmit((values) =>
         send.execute({ ...values, page: pathname }),
       )}
-      className="flex flex-1 flex-col overflow-y-auto"
+      className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
       noValidate
     >
       <div className="flex-1 space-y-3 px-4 py-4">

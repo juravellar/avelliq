@@ -15,7 +15,11 @@ import { getSupportAlert } from "@/actions/support-alert";
 
 const POLL_MS = 60 * 1000;
 
-const AwaitingContext = createContext({ awaiting: 0, refresh: () => {} });
+const AwaitingContext = createContext({
+  enabled: false,
+  awaiting: 0,
+  refresh: () => {},
+});
 
 // Tickets with a customer message the team hasn't opened, for the header
 // alert and the sidebar badge.
@@ -57,7 +61,7 @@ export function SupportAlertProvider({
 
   return (
     <AwaitingContext.Provider
-      value={{ awaiting: enabled ? awaiting : 0, refresh: execute }}
+      value={{ enabled, awaiting: enabled ? awaiting : 0, refresh: execute }}
     >
       {children}
     </AwaitingContext.Provider>
@@ -74,11 +78,25 @@ export function RefreshSupportAlert() {
   return null;
 }
 
-// Always in the header, so it shows with the sidebar closed and on phones.
+// Always in the team's header, so it shows with the sidebar closed and on
+// phones: gray with nothing new, blue with the count otherwise.
 export function SupportAlert() {
-  const awaiting = useAwaitingTickets();
-  if (awaiting === 0) {
+  const { enabled, awaiting } = useContext(AwaitingContext);
+  if (!enabled) {
     return null;
+  }
+  if (awaiting === 0) {
+    return (
+      <Link
+        href="/atendimento"
+        prefetch={false}
+        aria-label="Nenhuma mensagem nova no Atendimento"
+        title="Nenhuma mensagem nova no Atendimento"
+        className="text-muted-foreground hover:text-foreground hover:bg-accent ml-auto flex shrink-0 items-center rounded-full p-1.5 transition-colors"
+      >
+        <Bell className="h-4 w-4" aria-hidden />
+      </Link>
+    );
   }
   const label =
     awaiting === 1
