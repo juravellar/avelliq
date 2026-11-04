@@ -18,8 +18,17 @@ import {
 
 import { db } from "@/db";
 import type { Transaction } from "@/db/clinic-lock";
-import { supportMessagesTable, supportTicketsTable } from "@/db/schema";
-import { isEmailConfigured, sendEmail, ticketReceivedEmail } from "@/lib/email";
+import {
+  supportMessagesTable,
+  supportTicketsTable,
+  usersTable,
+} from "@/db/schema";
+import {
+  isEmailConfigured,
+  sendEmail,
+  ticketReceivedEmail,
+  ticketUrlFor,
+} from "@/lib/email";
 
 import { searchPattern } from "./accounts";
 import { getReceivedEmail, InboxError, listReceivedEmails } from "./inbox";
@@ -365,6 +374,19 @@ export const importReceivedEmail = async (
   return result;
 };
 
+// The e-mails' "Ver conversa no Avelliq" link, only for a customer with a
+// confirmed Avelliq account: "Meus atendimentos" finds tickets by that
+// address, and anyone else would land on a sign-in page that can't help.
+export const customerTicketUrl = async (
+  ticket: Pick<Ticket, "id" | "customerEmail">,
+) => {
+  const account = await db.query.usersTable.findFirst({
+    where: eq(usersTable.email, ticket.customerEmail),
+    columns: { emailVerified: true },
+  });
+  return account?.emailVerified ? ticketUrlFor(ticket.id) : undefined;
+};
+
 // E-mails the protocol of a new ticket to the customer, and notes it in the
 // ticket's history. A failure is logged: the ticket is already stored.
 export const acknowledge = async (ticket: Ticket, messageIds: string[]) => {
@@ -378,7 +400,7 @@ export const acknowledge = async (ticket: Ticket, messageIds: string[]) => {
       subject: ticketSubject(protocol, ticket.subject, {
         reply: ticket.source === "email",
       }),
-      ...ticketReceivedEmail(protocol),
+      ...ticketReceivedEmail(protocol, await customerTicketUrl(ticket)),
       headers: {
         // RFC 3834: tells the other side's autoresponder not to answer.
         "Auto-Submitted": "auto-replied",

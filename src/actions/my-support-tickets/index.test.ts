@@ -11,6 +11,7 @@ vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession: mocks.getSession } },
 }));
+vi.mock("@/lib/support/inbox-refresh", () => ({ refreshInboxSoon: () => {} }));
 vi.mock("@/lib/support/tickets", () => ({
   customerTickets: mocks.customerTickets,
   customerTicket: mocks.customerTicket,

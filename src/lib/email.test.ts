@@ -133,6 +133,20 @@ describe("email", () => {
     expect(concluded.html).not.toContain("é só responder este email");
   });
 
+  it("adds the conversation button only when there is a link", () => {
+    const withLink = ticketReceivedEmail(
+      "AV-000042",
+      "https://www.avelliq.com.br/painel?atendimento=t1",
+    );
+    expect(withLink.html).toContain("Ver conversa no Avelliq");
+    expect(withLink.html).toContain(
+      'href="https://www.avelliq.com.br/painel?atendimento=t1"',
+    );
+    expect(ticketReceivedEmail("AV-000042").html).not.toContain(
+      "Ver conversa no Avelliq",
+    );
+  });
+
   it("gives the protocol of a new ticket", () => {
     const email = ticketReceivedEmail("AV-000042");
     expect(email.text).toContain("Seu protocolo é AV-000042");

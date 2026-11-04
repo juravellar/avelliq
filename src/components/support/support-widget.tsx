@@ -17,8 +17,24 @@ const SupportPanel = dynamic(() => import("./support-panel"), { ssr: false });
 export function SupportWidget(props: SupportPanelProps) {
   const [open, setOpen] = useState(false);
   const [started, setStarted] = useState(false);
+  const [linkedTicket, setLinkedTicket] = useState<string | null>(null);
   const panelId = useId();
   const close = useCallback(() => setOpen(false), []);
+
+  // The e-mails' "Ver conversa no Avelliq" opens /painel?atendimento=<id>:
+  // the panel opens on that conversation and the address loses the id.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const ticketId = url.searchParams.get("atendimento");
+    if (!ticketId || !props.user) {
+      return;
+    }
+    setLinkedTicket(ticketId);
+    setStarted(true);
+    setOpen(true);
+    url.searchParams.delete("atendimento");
+    window.history.replaceState(null, "", url);
+  }, [props.user]);
 
   // On phones the open panel covers the page: the page behind stays still
   // instead of scrolling along with the chat.
@@ -36,7 +52,13 @@ export function SupportWidget(props: SupportPanelProps) {
   return (
     <div className="fixed right-4 bottom-4 z-40 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
       {started && (
-        <SupportPanel id={panelId} open={open} onClose={close} {...props} />
+        <SupportPanel
+          id={panelId}
+          open={open}
+          onClose={close}
+          initialTicketId={linkedTicket}
+          {...props}
+        />
       )}
       <button
         type="button"

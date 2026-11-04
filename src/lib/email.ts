@@ -180,17 +180,21 @@ const whereToWrite = () =>
 const finalNotice = (protocol: string, statusName: string) =>
   `Este atendimento foi ${statusName}. Guarde o protocolo ${protocol}. Se não concordar com a resposta, abra um novo atendimento ${whereToWrite()} e informe este protocolo.`;
 
-// Sent when a ticket is opened, so the customer has its protocol.
-export const ticketReceivedEmail = (protocol: string) => {
+const TICKET_BUTTON = "Ver conversa no Avelliq";
+
+// Sent when a ticket is opened, so the customer has its protocol. With an
+// Avelliq account, a button opens the conversation in the help panel.
+export const ticketReceivedEmail = (protocol: string, ticketUrl?: string) => {
   const kept = `Seu protocolo é ${protocol}. Guarde este número: ele identifica o seu atendimento.`;
   const more =
     "Para acrescentar informações, é só responder este e-mail. Não aceitamos anexos.";
   return {
-    text: `Recebemos sua mensagem e já abrimos um atendimento.\n\n${kept}\n\n${more}\n\nEste é um aviso automático.`,
+    text: `Recebemos sua mensagem e já abrimos um atendimento.\n\n${kept}\n\n${more}${ticketUrl ? `\n\nAcompanhe no Avelliq: ${ticketUrl}` : ""}\n\nEste é um aviso automático.`,
     html: emailLayout({
       preview: `Seu protocolo é ${protocol}.`,
       heading: "Recebemos sua mensagem",
       body: `${paragraph("Já abrimos um atendimento e nossa equipe vai responder por aqui.")}${protocolBox(protocol)}${paragraph("Guarde este número: ele identifica o seu atendimento.")}${paragraph(escapeHtml(more))}`,
+      action: ticketUrl ? { label: TICKET_BUTTON, url: ticketUrl } : undefined,
       footnote: "Este é um aviso automático.",
     }),
   };
@@ -198,23 +202,30 @@ export const ticketReceivedEmail = (protocol: string) => {
 
 // The team's answer to a ticket: the text typed, the protocol and, when the
 // ticket is over, how to disagree; then the customer's message quoted.
+// The link that opens a ticket in the customer's help panel.
+export const ticketUrlFor = (ticketId: string) =>
+  `${appUrl()}/painel?atendimento=${encodeURIComponent(ticketId)}`;
+
 export const supportReplyEmail = ({
   answer,
   quoted,
   protocol,
   finalStatusName,
+  ticketUrl,
 }: {
   answer: string;
   quoted: string;
   protocol: string;
   // "concluído" or "arquivado" when this answer ends the ticket.
   finalStatusName?: string;
+  // Only for customers with an Avelliq account: opens the conversation.
+  ticketUrl?: string;
 }) => {
   const notice = finalStatusName
     ? finalNotice(protocol, finalStatusName)
     : null;
   return {
-    text: `${answer.trim()}\n\nProtocolo: ${protocol}${notice ? `\n\n${notice}` : ""}${quoted}`,
+    text: `${answer.trim()}\n\nProtocolo: ${protocol}${notice ? `\n\n${notice}` : ""}${ticketUrl ? `\n\nVer a conversa no Avelliq: ${ticketUrl}` : ""}${quoted}`,
     html: emailLayout({
       preview: answer.trim().replace(/\s+/g, " ").slice(0, 100),
       body: `<p style="margin:0;white-space:pre-wrap">${escapeHtml(answer.trim())}</p>${
@@ -228,6 +239,7 @@ export const supportReplyEmail = ({
           ? `<blockquote style="margin:24px 0 0;padding:4px 0 4px 14px;border-left:3px solid ${BORDER};font-size:13px;line-height:20px;color:${MUTED};white-space:pre-wrap">${escapeHtml(quoted.trim())}</blockquote>`
           : ""
       }`,
+      action: ticketUrl ? { label: TICKET_BUTTON, url: ticketUrl } : undefined,
       footnote: notice
         ? `Protocolo ${escapeHtml(protocol)}.`
         : `Protocolo ${escapeHtml(protocol)}. Para continuar a conversa, é só responder este email.`,
