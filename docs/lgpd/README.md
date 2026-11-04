@@ -9,6 +9,7 @@ O Avelliq trata dados de saúde (agendamentos revelam que uma pessoa buscou aten
 | Dado | Controlador | Operador |
 |---|---|---|
 | Conta (nome, email, senha, plano) | Avelliq | — |
+| Atendimentos do suporte (mensagens e protocolo) | Avelliq | — |
 | Pacientes, médicos, agendamentos | Clínica | Avelliq |
 
 ## O que o sistema já faz
@@ -17,10 +18,10 @@ O Avelliq trata dados de saúde (agendamentos revelam que uma pessoa buscou aten
 |---|---|
 | Transparência (arts. 6º, VI e 9º) | [`/privacidade`](../../src/app/(legal)/privacidade/page.tsx) e [`/termos`](../../src/app/(legal)/termos/page.tsx) |
 | Registro do aceite, com versão | Cadastro por email exige o aceite, e o servidor recusa sem ele. Contas existentes aceitam ao entrar. Ao mudar os textos, aumente `TERMS_VERSION` em [`src/lib/terms.ts`](../../src/lib/terms.ts) para pedir o aceite de novo |
-| Acesso e portabilidade (art. 18, II e V) | *Minha conta → Baixar meus dados* (JSON com conta, clínicas, médicos, pacientes e agendamentos) |
+| Acesso e portabilidade (art. 18, II e V) | *Minha conta → Baixar meus dados* (JSON com conta, clínicas, médicos, pacientes, agendamentos e os atendimentos do suporte ligados ao e-mail da conta) |
 | Correção (art. 18, III) | Telas de edição de clínica, médicos e pacientes |
-| Eliminação (art. 18, VI) | *Minha conta → Excluir conta*: cancela a assinatura e apaga a conta e as clínicas que só ela administra |
-| Retenção e descarte (arts. 15 e 16) | Cron diário (`/api/cron/data-retention`) apaga sessões expiradas e registros de auditoria com mais de 5 anos |
+| Eliminação (art. 18, VI) | *Minha conta → Excluir conta*: cancela a assinatura e apaga a conta, as clínicas que só ela administra e os atendimentos do suporte ligados ao e-mail da conta |
+| Retenção e descarte (arts. 15 e 16) | Cron diário (`/api/cron/data-retention`) apaga sessões expiradas, registros de auditoria com mais de 5 anos e atendimentos do suporte 2 anos depois da última mensagem |
 | Responsabilização (arts. 6º, X e 37) | Tabela `audit_logs`: quem criou, alterou ou excluiu cada cadastro, só com ids |
 | Segurança (art. 46) | HTTPS e HSTS, senhas com hash, isolamento por clínica, cabeçalhos contra clickjacking, logs de erro sem dados pessoais, verificação de email (com Resend configurado) |
 | Localização | Aplicação e banco em São Paulo (`gru1` e Neon `sa-east-1`) |

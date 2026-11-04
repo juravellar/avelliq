@@ -1,6 +1,6 @@
 // Bump when the terms of use or the privacy policy change: every user is
 // asked to accept the new version on their next visit.
-export const TERMS_VERSION = "2026-10-16";
+export const TERMS_VERSION = "2026-11-04";
 
 // Sent by the sign-up form when its acceptance box is checked.
 export const ACCEPT_TERMS_HEADER = "x-accept-terms";

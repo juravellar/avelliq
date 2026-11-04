@@ -6,6 +6,7 @@ import {
   sendEmail,
   supportReplyEmail,
   supportRequestEmail,
+  ticketReceivedEmail,
   verificationEmail,
 } from "./email";
 
@@ -81,20 +82,61 @@ describe("email", () => {
   });
 
   it("escapes support messages inside the layout", () => {
-    const reply = supportReplyEmail("<b>Oi</b>", "\n\n> <img src=x>");
+    const reply = supportReplyEmail({
+      answer: "<b>Oi</b>",
+      quoted: "\n\n> <img src=x>",
+      protocol: "AV-000007",
+    });
     expect(reply.html).not.toContain("<b>Oi</b>");
     expect(reply.html).not.toContain("<img src=x>");
-    expect(reply.text).toBe("<b>Oi</b>\n\n> <img src=x>");
+    expect(reply.text).toBe(
+      "<b>Oi</b>\n\nProtocolo: AV-000007\n\n> <img src=x>",
+    );
 
-    const request = supportRequestEmail({
-      topic: "Planos",
-      message: "<script>alert(1)</script>",
-      name: "Ana <x>",
-      email: "ana@exemplo.com",
-      page: null,
-    });
+    const request = supportRequestEmail(
+      {
+        topic: "Planos",
+        message: "<script>alert(1)</script>",
+        name: "Ana <x>",
+        email: "ana@exemplo.com",
+        page: null,
+      },
+      "AV-000008",
+    );
     expect(request.html).not.toContain("<script>");
     expect(request.html).not.toContain("Ana <x>");
     expect(request.html).toContain("Nova mensagem: Planos");
+    expect(request.subject).toBe(
+      "[Avelliq · Protocolo AV-000008] Planos: <script>alert(1)</script>",
+    );
+  });
+
+  it("tells the customer how to disagree when the answer ends the ticket", () => {
+    vi.stubEnv("SUPPORT_EMAIL", "sac@mail.avelliq.com.br");
+    const open = supportReplyEmail({
+      answer: "Veja em Médicos.",
+      quoted: "",
+      protocol: "AV-000007",
+    });
+    expect(open.text).not.toContain("contestar");
+    expect(open.html).toContain("é só responder este email");
+
+    const concluded = supportReplyEmail({
+      answer: "Resolvido.",
+      quoted: "",
+      protocol: "AV-000007",
+      finalStatusName: "concluído",
+    });
+    expect(concluded.text).toContain("Este atendimento foi concluído");
+    expect(concluded.text).toContain("abra um novo atendimento");
+    expect(concluded.text).toContain("sac@mail.avelliq.com.br");
+    expect(concluded.html).not.toContain("é só responder este email");
+  });
+
+  it("gives the protocol of a new ticket", () => {
+    const email = ticketReceivedEmail("AV-000042");
+    expect(email.text).toContain("Seu protocolo é AV-000042");
+    expect(email.html).toContain("AV-000042");
+    expect(email.text).toContain("Não aceitamos anexos");
   });
 });

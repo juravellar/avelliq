@@ -14,6 +14,7 @@ import {
 import { stripeClient } from "@/lib/stripe-client";
 import type { StripeMode } from "@/lib/stripe-mode";
 import { listCustomerSubscriptions } from "@/lib/stripe-subscription-sync";
+import { deleteTicketsOf, ticketsOf } from "@/lib/support/tickets";
 
 /**
  * Everything the app stores about the user and their clinics, for the
@@ -32,6 +33,7 @@ export const collectAccountData = async (userId: string) => {
     with: { clinic: true },
   });
   const clinicIds = memberships.map(({ clinicId }) => clinicId);
+  const supportTickets = await ticketsOf(user.email);
   const [doctors, patients, appointments] = clinicIds.length
     ? await Promise.all([
         db.query.doctorsTable.findMany({
@@ -69,6 +71,7 @@ export const collectAccountData = async (userId: string) => {
         ({ clinicId }) => clinicId === clinic.id,
       ),
     })),
+    supportTickets,
   };
 };
 
@@ -97,11 +100,19 @@ export const cancelBillableSubscriptions = async (
 };
 
 /**
- * Deletes the user and the clinics no one else belongs to. Doctors, patients
- * and appointments go with their clinic (on delete cascade), sessions and
- * linked logins with the user. Returns how many clinics were deleted.
+ * Deletes the user, the clinics no one else belongs to and the user's support
+ * tickets. Doctors, patients and appointments go with their clinic (on delete
+ * cascade), sessions and linked logins with the user. Returns how many
+ * clinics were deleted.
  */
 export const deleteAccountData = async (tx: Transaction, userId: string) => {
+  const user = await tx.query.usersTable.findFirst({
+    where: eq(usersTable.id, userId),
+    columns: { email: true },
+  });
+  if (user) {
+    await deleteTicketsOf(tx, user.email);
+  }
   const memberships = await tx.query.usersToClinicsTable.findMany({
     where: eq(usersToClinicsTable.userId, userId),
   });

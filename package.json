@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:integration": "vitest run src/db/clinic-lock.integration.test.ts data/get-dashboard.integration.test.ts src/lib/account-data.integration.test.ts"
+    "test:integration": "vitest run src/db/clinic-lock.integration.test.ts data/get-dashboard.integration.test.ts src/lib/account-data.integration.test.ts src/lib/support/tickets.integration.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",

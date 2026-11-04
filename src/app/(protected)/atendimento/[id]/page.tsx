@@ -1,8 +1,7 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mail, Paperclip, Settings2, UserRound } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageContainer, PageContent } from "@/components/ui/page-container";
@@ -13,28 +12,116 @@ import {
   canSeeSupportInbox,
   isSupportOwner,
 } from "@/lib/support/admin";
+import { isReceivedEmailId } from "@/lib/support/inbox";
+import { isOwnAddress } from "@/lib/support/inbox-helpers";
 import {
-  getReceivedEmail,
-  InboxError,
-  isInboxConfigured,
-  isReceivedEmailId,
-} from "@/lib/support/inbox";
+  getTicket,
+  isSupportTicket,
+  ticketIdOfEmail,
+} from "@/lib/support/tickets";
 import {
-  isForSupport,
-  isHelpFormMessage,
-  isOwnAddress,
-  type ReceivedEmail,
-  replyTarget,
-} from "@/lib/support/inbox-helpers";
+  isFinalStatus,
+  protocolOf,
+  splitQuotedReply,
+  STATUS_NAMES,
+} from "@/lib/support/tickets-helpers";
 
-import { EmailBody, InboxProblem } from "../_components/inbox-states";
-import { ReplyForm } from "../_components/reply-form";
+import { StatusBadge, StatusSteps } from "../_components/status-badge";
+import { TicketUpdateForm } from "../_components/ticket-update-form";
 
-const ReceivedEmailPage = async ({
-  params,
+type Ticket = NonNullable<Awaited<ReturnType<typeof getTicket>>>;
+type Message = Ticket["messages"][number];
+
+const when = (date: Date) =>
+  inClinicTimezone(date).format("DD/MM/YYYY [às] HH:mm");
+
+const AUTHOR_ICONS = {
+  customer: UserRound,
+  team: Mail,
+  system: Settings2,
+};
+
+const authorName = (message: Message, ticket: Ticket) =>
+  message.author === "customer"
+    ? `Cliente · ${ticket.customerName || ticket.customerEmail}`
+    : message.author === "team"
+      ? `Equipe · ${message.user?.name ?? "conta excluída"}`
+      : "Sistema";
+
+function TimelineItem({
+  message,
+  ticket,
 }: {
-  params: Promise<{ id: string }>;
-}) => {
+  message: Message;
+  ticket: Ticket;
+}) {
+  const Icon = AUTHOR_ICONS[message.author];
+  const { reply, quoted } = splitQuotedReply(message.body ?? "");
+  return (
+    <li className="flex gap-3 py-4 first:pt-0 last:pb-0">
+      <span
+        className={
+          message.author === "team"
+            ? "bg-avelliq-muted text-avelliq flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+            : "bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+        }
+      >
+        <Icon className="h-4 w-4" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="text-sm font-semibold">
+              {authorName(message, ticket)}
+            </strong>
+            {message.statusChange && (
+              <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                mudou para <StatusBadge status={message.statusChange} />
+              </span>
+            )}
+          </div>
+          <time
+            dateTime={message.createdAt.toISOString()}
+            className="text-muted-foreground text-xs"
+          >
+            {when(message.createdAt)}
+          </time>
+        </div>
+        {reply && (
+          <p
+            className={
+              message.author === "system"
+                ? "text-muted-foreground text-sm"
+                : "text-sm leading-relaxed break-words whitespace-pre-wrap"
+            }
+          >
+            {reply}
+          </p>
+        )}
+        {quoted && (
+          <details className="text-muted-foreground text-xs">
+            <summary className="cursor-pointer select-none">
+              Ver o trecho citado
+            </summary>
+            <pre className="mt-2 font-sans break-words whitespace-pre-wrap">
+              {quoted}
+            </pre>
+          </details>
+        )}
+        {message.hadAttachments && (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <Paperclip className="h-3.5 w-3.5" aria-hidden />O cliente enviou
+            anexos. Eles não são aceitos e não foram guardados.
+          </p>
+        )}
+      </div>
+    </li>
+  );
+}
+
+// One support ticket: protocol, customer, the whole conversation and the
+// team's update form. An old link to a received e-mail opens its ticket.
+const TicketPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const session = await getServerSession();
   if (!canSeeSupportInbox(session?.user)) {
     notFound();
@@ -43,92 +130,126 @@ const ReceivedEmailPage = async ({
   if (!isReceivedEmailId(id)) {
     notFound();
   }
-
-  let email: ReceivedEmail | null = null;
-  let error: unknown;
-  if (isInboxConfigured()) {
-    try {
-      email = await getReceivedEmail(id);
-    } catch (caught) {
-      if (caught instanceof InboxError && caught.status === 404) {
-        notFound();
-      }
-      error = caught;
-      console.error("Support e-mail not loaded:", (caught as Error).message);
+  const ticket = await getTicket(id);
+  if (!ticket) {
+    const ticketId = await ticketIdOfEmail(id);
+    if (ticketId) {
+      redirect(`/atendimento/${ticketId}`);
     }
-  }
-  if (email && !isSupportOwner(session?.user) && !isForSupport(email)) {
     notFound();
   }
+  if (!isSupportOwner(session?.user) && !isSupportTicket(ticket)) {
+    notFound();
+  }
+
+  const protocol = protocolOf(ticket.number);
+  const final = isFinalStatus(ticket.status);
+  const canEmail = !isOwnAddress(ticket.customerEmail);
 
   return (
     <PageContainer>
       <Button variant="ghost" asChild className="-ml-2 w-fit">
         <Link href="/atendimento" prefetch={false}>
           <ArrowLeft className="h-4 w-4" />
-          Voltar para a caixa de entrada
+          Voltar para os atendimentos
         </Link>
       </Button>
       <PageContent>
-        {!email ? (
-          <InboxProblem error={error} />
-        ) : (
-          <>
-            <Card>
-              <CardHeader className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-lg font-semibold break-words">
-                    {email.subject || "(sem assunto)"}
-                  </h1>
-                  {isHelpFormMessage(email) && (
-                    <Badge variant="secondary">Formulário</Badge>
-                  )}
-                </div>
-                <dl className="text-muted-foreground grid gap-x-3 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-                  <dt className="font-medium">De</dt>
-                  <dd className="break-all">{email.from}</dd>
-                  {email.reply_to && email.reply_to.length > 0 && (
-                    <>
-                      <dt className="font-medium">Responder para</dt>
-                      <dd className="break-all">{email.reply_to.join(", ")}</dd>
-                    </>
-                  )}
-                  <dt className="font-medium">Para</dt>
-                  <dd className="break-all">{email.to.join(", ")}</dd>
-                  <dt className="font-medium">Recebido em</dt>
+        <Card>
+          <CardHeader className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <h1 className="text-lg font-semibold">Protocolo {protocol}</h1>
+                <p className="text-sm break-words">{ticket.subject}</p>
+                <p className="text-muted-foreground text-xs">
+                  Aberto em {when(ticket.createdAt)}
+                  {ticket.source === "form"
+                    ? " pelo formulário de ajuda"
+                    : " por e-mail"}
+                </p>
+              </div>
+              <StatusBadge status={ticket.status} className="text-sm" />
+            </div>
+            <StatusSteps status={ticket.status} />
+          </CardHeader>
+          <CardContent className="space-y-4 border-t pt-6">
+            <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
+              <dt className="text-muted-foreground font-medium">Cliente</dt>
+              <dd className="break-words">{ticket.customerName || "—"}</dd>
+              <dt className="text-muted-foreground font-medium">E-mail</dt>
+              <dd className="break-all">{ticket.customerEmail}</dd>
+              <dt className="text-muted-foreground font-medium">Recebido em</dt>
+              <dd className="break-all">{ticket.inbox || "—"}</dd>
+              {ticket.previousTicket && (
+                <>
+                  <dt className="text-muted-foreground font-medium">
+                    Continua
+                  </dt>
                   <dd>
-                    {inClinicTimezone(new Date(email.created_at)).format(
-                      "DD/MM/YYYY [às] HH:mm",
-                    )}
+                    <Link
+                      href={`/atendimento/${ticket.previousTicket.id}`}
+                      prefetch={false}
+                      className="underline underline-offset-2"
+                    >
+                      Protocolo {protocolOf(ticket.previousTicket.number)}
+                    </Link>
                   </dd>
-                </dl>
-              </CardHeader>
-              <CardContent className="border-t pt-6">
-                <EmailBody text={email.text} html={email.html} />
-              </CardContent>
-            </Card>
-            {!canAnswerSupport(session?.user) ? (
-              <p className="text-muted-foreground rounded-lg border p-4 text-sm">
-                Contas QA veem o Atendimento para testar, mas não respondem: a
-                resposta chegaria a um cliente de verdade.
-              </p>
-            ) : isOwnAddress(replyTarget(email)) ? (
-              <p className="text-muted-foreground rounded-lg border p-4 text-sm">
-                Este e-mail veio de um endereço do próprio Avelliq (
-                {replyTarget(email)}), então não há para quem responder.
-              </p>
-            ) : (
-              <ReplyForm
-                id={email.id}
-                to={replyTarget(email)}
-                from={process.env.SUPPORT_EMAIL ?? null}
-              />
+                </>
+              )}
+            </dl>
+            {ticket.context && (
+              <div className="bg-muted/50 rounded-md border p-3 text-sm">
+                <p className="text-muted-foreground mb-1 text-xs font-medium">
+                  Dados da conta (só a equipe vê)
+                </p>
+                <p className="break-words whitespace-pre-wrap">
+                  {ticket.context}
+                </p>
+              </div>
             )}
-          </>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h2 className="text-base font-semibold">Histórico</h2>
+          </CardHeader>
+          <CardContent>
+            <ol className="divide-y">
+              {ticket.messages.map((message) => (
+                <TimelineItem
+                  key={message.id}
+                  message={message}
+                  ticket={ticket}
+                />
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+
+        {final ? (
+          <p className="text-muted-foreground rounded-lg border p-4 text-sm">
+            Este atendimento foi {STATUS_NAMES[ticket.status].toLowerCase()} e
+            não pode mais ser alterado. Se o cliente responder, a mensagem abre
+            um novo atendimento ligado a este protocolo.
+          </p>
+        ) : !canAnswerSupport(session?.user) ? (
+          <p className="text-muted-foreground rounded-lg border p-4 text-sm">
+            Contas QA veem o Atendimento para testar, mas não respondem nem
+            mudam o status: a mensagem chegaria a um cliente de verdade.
+          </p>
+        ) : (
+          <TicketUpdateForm
+            ticketId={ticket.id}
+            status={ticket.status}
+            to={ticket.customerEmail}
+            from={process.env.SUPPORT_EMAIL ?? null}
+            canEmail={canEmail}
+          />
         )}
       </PageContent>
     </PageContainer>
   );
 };
 
-export default ReceivedEmailPage;
+export default TicketPage;

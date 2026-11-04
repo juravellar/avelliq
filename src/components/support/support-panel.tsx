@@ -173,14 +173,16 @@ export default function SupportPanel({
     );
   };
 
-  const onSent = (email: string | undefined) => {
+  const onSent = (email?: string, protocol?: string) => {
     setView("chat");
     setMisses(0);
     push({
       from: "bot",
-      text: email
-        ? `Mensagem enviada! Nossa equipe vai responder em ${email}.`
-        : "Mensagem enviada! Nossa equipe vai responder por e-mail.",
+      text: `Mensagem enviada! Nossa equipe vai responder ${email ? `em ${email}` : "por e-mail"}.${
+        protocol
+          ? ` Seu protocolo é ${protocol}: guarde este número. Se precisar contestar uma resposta, abra um novo atendimento e informe esse protocolo.`
+          : ""
+      }`,
     });
   };
 
@@ -380,7 +382,7 @@ function HumanForm({
   user?: { name: string; email: string } | null;
   supportEmail: string | null;
   onBack: () => void;
-  onSent: (email: string | undefined) => void;
+  onSent: (email?: string, protocol?: string) => void;
 }) {
   const pathname = usePathname();
   const form = useForm<SupportRequest>({
@@ -416,7 +418,7 @@ function HumanForm({
   const send = useAction(sendSupportRequest, {
     onSuccess: ({ data }) => {
       form.reset();
-      onSent(data?.replyTo);
+      onSent(data?.replyTo, data?.protocol);
     },
   });
   const errors = form.formState.errors;

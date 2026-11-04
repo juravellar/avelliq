@@ -4,7 +4,14 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   sendEmail: vi.fn(),
   isEmailConfigured: vi.fn(),
+  createFormTicket: vi.fn(),
+  acknowledge: vi.fn(),
   headers: new Headers({ "x-forwarded-for": "203.0.113.7" }),
+}));
+vi.mock("@/lib/support/tickets", () => ({
+  createFormTicket: mocks.createFormTicket,
+  acknowledge: mocks.acknowledge,
+  TICKET_HEADER: "X-Avelliq-Protocol",
 }));
 vi.mock("next/headers", () => ({ headers: async () => mocks.headers }));
 vi.mock("@/lib/auth", () => ({
@@ -30,6 +37,13 @@ describe("sendSupportRequest", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.isEmailConfigured.mockReturnValue(true);
+    mocks.sendEmail.mockResolvedValue(undefined);
+    mocks.acknowledge.mockResolvedValue(undefined);
+    mocks.createFormTicket.mockImplementation(async () => ({
+      id: "ticket",
+      number: 42,
+      protocol: "AV-000042",
+    }));
     mocks.getSession.mockResolvedValue({
       user: {
         id: `user_${Math.random()}`,
@@ -46,19 +60,44 @@ describe("sendSupportRequest", () => {
     vi.stubEnv("SUPPORT_EMAIL", "sac@mail.avelliq.com.br");
   });
 
-  it("e-mails the team with the account, replying to the user", async () => {
+  it("opens a ticket, tells the team and gives the person the protocol", async () => {
     const result = await sendSupportRequest(request);
 
-    expect(result?.data).toEqual({ sent: true, replyTo: "ana@clinica.com" });
+    expect(result?.data).toEqual({
+      sent: true,
+      replyTo: "ana@clinica.com",
+      protocol: "AV-000042",
+    });
+    const ticket = mocks.createFormTicket.mock.calls[0][0];
+    expect(ticket).toMatchObject({
+      name: "Ana",
+      email: "ana@clinica.com",
+      message: request.message,
+      subject: expect.stringMatching(/^Dúvida: Como faço/),
+    });
+    expect(ticket.context).toContain("Plano: Essencial");
+    expect(ticket.context).toContain("Clínica: Clínica Centro");
     const sent = mocks.sendEmail.mock.calls[0][0];
     expect(sent).toMatchObject({
       to: "equipe@example.com",
       replyTo: "ana@clinica.com",
-      subject: expect.stringContaining("[Avelliq · Dúvida]"),
+      subject: expect.stringContaining("[Avelliq · Protocolo AV-000042]"),
+      headers: { "X-Avelliq-Protocol": "AV-000042" },
     });
-    expect(sent.text).toContain("Plano: Essencial");
-    expect(sent.text).toContain("Clínica: Clínica Centro");
-    expect(sent.text).toContain(request.message);
+    expect(mocks.acknowledge).toHaveBeenCalledWith(
+      expect.objectContaining({ number: 42 }),
+      [],
+    );
+  });
+
+  it("keeps the ticket when the team's notice fails", async () => {
+    mocks.sendEmail.mockRejectedValue(
+      new Error("Email provider responded 500"),
+    );
+
+    const result = await sendSupportRequest(request);
+
+    expect(result?.data?.protocol).toBe("AV-000042");
   });
 
   it("asks a signed-out visitor for name and e-mail", async () => {
@@ -73,7 +112,7 @@ describe("sendSupportRequest", () => {
       email: "bruno@example.com",
     });
     expect(ok?.data?.replyTo).toBe("bruno@example.com");
-    expect(mocks.sendEmail.mock.calls[0][0].text).toContain(
+    expect(mocks.createFormTicket.mock.calls[0][0].context).toContain(
       "não estava logado",
     );
   });
@@ -82,6 +121,7 @@ describe("sendSupportRequest", () => {
     const result = await sendSupportRequest({ ...request, leaveBlank: "spam" });
 
     expect(result?.data).toEqual({ sent: true });
+    expect(mocks.createFormTicket).not.toHaveBeenCalled();
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
@@ -106,9 +146,7 @@ describe("sendSupportRequest", () => {
   });
 
   it("explains a failed send instead of a generic error", async () => {
-    mocks.sendEmail.mockRejectedValue(
-      new Error("Email provider responded 500"),
-    );
+    mocks.createFormTicket.mockRejectedValue(new Error("connection refused"));
 
     const result = await sendSupportRequest(request);
 
@@ -120,13 +158,15 @@ describe("sendSupportRequest", () => {
     mocks.getSession.mockResolvedValue({
       user: { id: "unlucky_user", name: "Ana", email: "a@a.com", plan: null },
     });
-    mocks.sendEmail.mockRejectedValue(
-      new Error("Email provider responded 500"),
-    );
+    mocks.createFormTicket.mockRejectedValue(new Error("connection refused"));
     for (let i = 0; i < SUPPORT_LIMIT.max + 2; i++) {
       await sendSupportRequest(request);
     }
-    mocks.sendEmail.mockResolvedValue(undefined);
+    mocks.createFormTicket.mockResolvedValue({
+      id: "t",
+      number: 1,
+      protocol: "AV-000001",
+    });
 
     expect((await sendSupportRequest(request))?.data?.sent).toBe(true);
   });

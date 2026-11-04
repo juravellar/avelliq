@@ -2,10 +2,15 @@ import { lt } from "drizzle-orm";
 
 import { db } from "@/db";
 import { auditLogsTable, sessionsTable, verificationsTable } from "@/db/schema";
+import {
+  deleteExpiredTickets,
+  TICKET_RETENTION_YEARS,
+} from "@/lib/support/tickets";
 
 // Sessions keep the IP address and browser of each sign-in. Once expired they
 // serve no purpose, so they are deleted instead of piling up (LGPD art. 16).
-// The audit log is kept for 5 years, as stated in the privacy policy.
+// The audit log is kept for 5 years and support tickets for 2 years after
+// their last message, as stated in the privacy policy.
 // Called daily by Vercel Cron, which sends CRON_SECRET as a bearer token.
 const AUDIT_RETENTION_YEARS = 5;
 
@@ -17,7 +22,9 @@ export async function GET(request: Request) {
   const now = new Date();
   const auditCutoff = new Date(now);
   auditCutoff.setFullYear(auditCutoff.getFullYear() - AUDIT_RETENTION_YEARS);
-  const [sessions, verifications, auditLogs] = await Promise.all([
+  const ticketCutoff = new Date(now);
+  ticketCutoff.setFullYear(ticketCutoff.getFullYear() - TICKET_RETENTION_YEARS);
+  const [sessions, verifications, auditLogs, tickets] = await Promise.all([
     db
       .delete(sessionsTable)
       .where(lt(sessionsTable.expiresAt, now))
@@ -30,10 +37,12 @@ export async function GET(request: Request) {
       .delete(auditLogsTable)
       .where(lt(auditLogsTable.createdAt, auditCutoff))
       .returning({ id: auditLogsTable.id }),
+    deleteExpiredTickets(ticketCutoff),
   ]);
   return Response.json({
     deletedSessions: sessions.length,
     deletedVerifications: verifications.length,
     deletedAuditLogs: auditLogs.length,
+    deletedSupportTickets: tickets.length,
   });
 }
