@@ -3,7 +3,6 @@
 import { z } from "zod";
 
 import { UserFacingError } from "@/lib/action-errors";
-import { refreshInboxSoon } from "@/lib/support/inbox-refresh";
 import {
   addCustomerMessage,
   customerTicket,
@@ -27,9 +26,6 @@ const confirmedEmail = (user: { email: string; emailVerified: boolean }) => {
 // "Meus atendimentos" in the help panel.
 export const listMyTickets = userActionClient.action(async ({ ctx }) => {
   const email = confirmedEmail(ctx.user);
-  // A fallback for an e-mail reply the webhook missed: it is brought in
-  // right after, for the next look.
-  refreshInboxSoon();
   const tickets = await customerTickets(email);
   return tickets.map((ticket) => ({
     id: ticket.id,

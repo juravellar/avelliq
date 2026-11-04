@@ -2,14 +2,12 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 
-import { patientsTable } from "@/db/schema";
 import { formatPhone } from "@/helpers/phone";
 
+import type { PatientRow } from "./patient-row";
 import { PatientTableActions } from "./table-actions";
 
-type Patient = typeof patientsTable.$inferSelect;
-
-export const patientsTableColumns: ColumnDef<Patient>[] = [
+export const patientsTableColumns: ColumnDef<PatientRow>[] = [
   {
     id: "name",
     accessorKey: "name",

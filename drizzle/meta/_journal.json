@@ -141,6 +141,13 @@
       "when": 1793831591697,
       "tag": "0019_support_deleted_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793832966617,
+      "tag": "0020_support_inbox_sync",
+      "breakpoints": true
     }
   ]
 }

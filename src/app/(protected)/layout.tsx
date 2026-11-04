@@ -32,22 +32,24 @@ export default async function Layout({ children }: { children: ReactNode }) {
     redirect("/entrar");
   }
   const clinicId = session.user.clinic?.id;
-  // Only with a confirmed e-mail: tickets are found by address. A failure
-  // only hides the badge.
-  const unreadTickets = session.user.emailVerified
-    ? await countUnreadTickets(session.user.email).catch(() => 0)
-    : 0;
   // Avelliq's team: tickets waiting for them, and new e-mails brought in
   // after the response.
   const isTeam = canSeeSupportInbox(session.user);
   if (isTeam) {
     refreshInboxSoon();
   }
-  const awaiting = isTeam
-    ? await countNewForTeam({ seesAll: isSupportOwner(session.user) }).catch(
-        () => 0,
-      )
-    : 0;
+  // Unread tickets only with a confirmed e-mail: they are found by address.
+  // A failure only hides the badges. Both counts are read together.
+  const [unreadTickets, awaiting] = await Promise.all([
+    session.user.emailVerified
+      ? countUnreadTickets(session.user.email).catch(() => 0)
+      : 0,
+    isTeam
+      ? countNewForTeam({ seesAll: isSupportOwner(session.user) }).catch(
+          () => 0,
+        )
+      : 0,
+  ]);
   // The session already read the active clinic's branding; the sidebar loads
   // the logo itself from its own cacheable URL.
   const { branding } = session.user;

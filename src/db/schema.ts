@@ -178,25 +178,30 @@ export const clinicsTableRelations = relations(clinicsTable, ({ many }) => ({
   usersToClinics: many(usersToClinicsTable),
 }));
 
-export const doctorsTable = pgTable("doctors", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  clinicId: uuid("clinic_id")
-    .notNull()
-    .references(() => clinicsTable.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  avatarImageUrl: text("avatar_image_url"),
-  // 1 - Monday, 2 - Tuesday, 3 - Wednesday, 4 - Thursday, 5 - Friday, 6 - Saturday, 0 - Sunday
-  availableFromWeekDay: integer("available_from_week_day").notNull(),
-  availableToWeekDay: integer("available_to_week_day").notNull(),
-  availableFromTime: time("available_from_time").notNull(),
-  availableToTime: time("available_to_time").notNull(),
-  specialty: text("specialty").notNull(),
-  appointmentPriceInCents: integer("appointment_price_in_cents").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const doctorsTable = pgTable(
+  "doctors",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinicsTable.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    avatarImageUrl: text("avatar_image_url"),
+    // 1 - Monday, 2 - Tuesday, 3 - Wednesday, 4 - Thursday, 5 - Friday, 6 - Saturday, 0 - Sunday
+    availableFromWeekDay: integer("available_from_week_day").notNull(),
+    availableToWeekDay: integer("available_to_week_day").notNull(),
+    availableFromTime: time("available_from_time").notNull(),
+    availableToTime: time("available_to_time").notNull(),
+    specialty: text("specialty").notNull(),
+    appointmentPriceInCents: integer("appointment_price_in_cents").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  // Every page of the app lists a clinic's doctors.
+  (table) => [index("doctors_clinic_id_idx").on(table.clinicId)],
+);
 
 export const doctorsTableRelations = relations(
   doctorsTable,
@@ -245,6 +250,8 @@ export const patientsTable = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
+    // Every page of the app lists a clinic's patients.
+    index("patients_clinic_id_idx").on(table.clinicId),
     // A CPF identifies one person: no two patients of a clinic share it.
     uniqueIndex("patients_clinic_cpf_unique")
       .on(table.clinicId, table.cpf)
@@ -283,8 +290,12 @@ export const appointmentsTable = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  // A doctor can only be booked once per slot, even under concurrent requests.
   (table) => [
+    // The agenda and the dashboard read a clinic's appointments by date; the
+    // patient index serves the joins and the cascade when a patient is deleted.
+    index("appointments_clinic_date_idx").on(table.clinicId, table.date),
+    index("appointments_patient_id_idx").on(table.patientId),
+    // A doctor can only be booked once per slot, even under concurrent requests.
     uniqueIndex("appointments_doctor_id_date_unique").on(
       table.doctorId,
       table.date,
@@ -435,6 +446,13 @@ export const supportMessagesTable = pgTable(
 export const supportDeletedEmailsTable = pgTable("support_deleted_emails", {
   resendEmailIdHash: text("resend_email_id_hash").primaryKey(),
   deletedAt: timestamp("deleted_at").defaultNow().notNull(),
+});
+
+// One row that says when the support inbox was last brought in, so only one
+// server instance at a time does it however many are running.
+export const supportInboxSyncTable = pgTable("support_inbox_sync", {
+  key: text("key").primaryKey(),
+  lastSyncedAt: timestamp("last_synced_at").notNull(),
 });
 
 export const supportTicketsTableRelations = relations(

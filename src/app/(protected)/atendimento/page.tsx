@@ -13,14 +13,15 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@/components/ui/page-container";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import { inClinicTimezone } from "@/helpers/time";
+import { pageNumber } from "@/lib/pagination";
 import { getServerSession } from "@/lib/server-session";
-import { pageNumber } from "@/lib/support/accounts";
 import { canSeeSupportInbox, isSupportOwner } from "@/lib/support/admin";
 import { isInboxConfigured } from "@/lib/support/inbox";
+import { refreshInboxSoon } from "@/lib/support/inbox-refresh";
 import {
   listTickets,
-  syncInbox,
   type TicketFilter,
   TICKETS_PAGE_SIZE,
 } from "@/lib/support/tickets";
@@ -70,8 +71,9 @@ const pageHref = ({
 };
 
 // The support tickets: e-mails to the support address and help-form
-// messages, each under a protocol, newest activity first. Opening the page
-// brings in the e-mails received since the last visit.
+// messages, each under a protocol, newest activity first. The webhook brings
+// e-mails in as they arrive; opening the page only asks for a refresh after
+// the response, as a fallback, so it never waits on Resend.
 const InboxPage = async ({ searchParams }: InboxPageProps) => {
   const session = await getServerSession();
   if (!canSeeSupportInbox(session?.user)) {
@@ -85,16 +87,7 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
   const filter = isFilter(params.status) ? params.status : undefined;
   const page = pageNumber(params.pagina);
 
-  let syncError: unknown;
-  let waiting = 0;
-  if (isInboxConfigured()) {
-    try {
-      waiting = await syncInbox();
-    } catch (error) {
-      syncError = error;
-      console.error("Support inbox not synced:", (error as Error).message);
-    }
-  }
+  refreshInboxSoon();
 
   const { rows, total } = await listTickets({ search, filter, page, seesAll });
   const pages = Math.max(1, Math.ceil(total / TICKETS_PAGE_SIZE));
@@ -118,15 +111,7 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
         </PageHeaderContent>
       </PageHeader>
       <PageContent>
-        {(!isInboxConfigured() || syncError !== undefined) && (
-          <InboxProblem error={syncError} />
-        )}
-        {waiting > 0 && (
-          <p className="text-muted-foreground rounded-lg border p-3 text-sm">
-            Ainda faltam {waiting} e-mails antigos para importar. Recarregue a
-            página para continuar.
-          </p>
-        )}
+        {!isInboxConfigured() && <InboxProblem />}
 
         <form
           action="/atendimento"
@@ -235,37 +220,11 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
           </ul>
         )}
 
-        {pages > 1 && (
-          <div className="flex items-center justify-between gap-2">
-            {page > 1 ? (
-              <Button variant="outline" asChild>
-                <Link
-                  href={pageHref({ search, filter, page: page - 1 })}
-                  prefetch={false}
-                >
-                  Anterior
-                </Link>
-              </Button>
-            ) : (
-              <span />
-            )}
-            <span className="text-muted-foreground text-sm">
-              Página {page} de {pages}
-            </span>
-            {page < pages ? (
-              <Button variant="outline" asChild>
-                <Link
-                  href={pageHref({ search, filter, page: page + 1 })}
-                  prefetch={false}
-                >
-                  Próxima
-                </Link>
-              </Button>
-            ) : (
-              <span />
-            )}
-          </div>
-        )}
+        <PaginationLinks
+          page={page}
+          pages={pages}
+          href={(target) => pageHref({ search, filter, page: target })}
+        />
       </PageContent>
     </PageContainer>
   );
