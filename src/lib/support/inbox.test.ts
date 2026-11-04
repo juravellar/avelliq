@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InboxError, isReceivedEmailId, listReceivedEmails } from "./inbox";
+import {
+  InboxError,
+  isInboxConfigured,
+  isReceivedEmailId,
+  listReceivedEmails,
+} from "./inbox";
 
 const respond = (status: number, body: unknown) =>
   vi
@@ -64,5 +69,28 @@ describe("Resend receiving client", () => {
       true,
     );
     expect(isReceivedEmailId("../domains")).toBe(false);
+  });
+});
+
+describe("isInboxConfigured", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("imports the inbox only in production, unless opted in", () => {
+    vi.stubEnv("RESEND_RECEIVING_API_KEY", "re_full");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect(isInboxConfigured()).toBe(false);
+
+    vi.stubEnv("SUPPORT_INBOX_SYNC", "1");
+    expect(isInboxConfigured()).toBe(true);
+
+    vi.stubEnv("SUPPORT_INBOX_SYNC", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(isInboxConfigured()).toBe(true);
+  });
+
+  it("stays off without the receiving key", () => {
+    vi.stubEnv("RESEND_RECEIVING_API_KEY", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(isInboxConfigured()).toBe(false);
   });
 });

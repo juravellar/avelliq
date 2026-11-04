@@ -33,6 +33,8 @@ vi.mock("@/db", () => {
   return { db };
 });
 
+import { TERMS_VERSION } from "@/lib/terms";
+
 import { upsertPatient } from ".";
 
 const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
@@ -50,7 +52,11 @@ describe("upsertPatient", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.getSession.mockResolvedValue({
-      user: { plan: null, clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: null,
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.findPatient.mockResolvedValue(undefined);
     mocks.countPatients.mockResolvedValue(0);

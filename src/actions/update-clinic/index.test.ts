@@ -27,6 +27,8 @@ vi.mock("@/db", () => {
   };
 });
 
+import { TERMS_VERSION } from "@/lib/terms";
+
 import { updateClinic } from ".";
 
 describe("updateClinic", () => {
@@ -35,6 +37,7 @@ describe("updateClinic", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.getSession.mockResolvedValue({
       user: {
+        termsVersion: TERMS_VERSION,
         id: "user_1",
         plan: "essential",
         freePeriodStartsAt: new Date(),
@@ -97,6 +100,7 @@ describe("updateClinic", () => {
   it("refuses to edit a clinic that is read-only on the plan", async () => {
     mocks.getSession.mockResolvedValue({
       user: {
+        termsVersion: TERMS_VERSION,
         id: "user_1",
         plan: "essential",
         freePeriodStartsAt: new Date(),

@@ -41,6 +41,8 @@ vi.mock("@/lib/available-times", () => ({
   computeAvailableTimes: mocks.computeAvailableTimes,
 }));
 
+import { TERMS_VERSION } from "@/lib/terms";
+
 import { upsertAppointment } from ".";
 
 const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
@@ -63,7 +65,11 @@ describe("upsertAppointment", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.getSession.mockResolvedValue({
-      user: { plan: null, clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: null,
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.countAppointments.mockResolvedValue(0);
     mocks.findPatient.mockResolvedValue({
@@ -146,7 +152,11 @@ describe("upsertAppointment", () => {
 
   it("does not limit appointments on paid plans", async () => {
     mocks.getSession.mockResolvedValue({
-      user: { plan: "professional", clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: "professional",
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.countAppointments.mockResolvedValue(5000);
 

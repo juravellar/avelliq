@@ -22,6 +22,8 @@ vi.mock("@/db", () => {
   return { db };
 });
 
+import { TERMS_VERSION } from "@/lib/terms";
+
 import { deleteDoctor } from ".";
 
 const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
@@ -36,7 +38,11 @@ describe("deleteDoctor", () => {
 
   it("deletes a doctor during the free period", async () => {
     mocks.getSession.mockResolvedValue({
-      user: { plan: null, clinic: { id: CLINIC_ID, createdAt: new Date() } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: null,
+        clinic: { id: CLINIC_ID, createdAt: new Date() },
+      },
     });
 
     const result = await deleteDoctor({ id: DOCTOR_ID });
@@ -56,6 +62,7 @@ describe("deleteDoctor", () => {
   it("refuses to delete once the free period is over", async () => {
     mocks.getSession.mockResolvedValue({
       user: {
+        termsVersion: TERMS_VERSION,
         plan: null,
         freePeriodStartsAt: new Date("2020-01-01T00:00:00Z"),
         clinic: { id: CLINIC_ID, writable: true },

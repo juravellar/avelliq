@@ -10,6 +10,7 @@ import { usersTable } from "@/db/schema";
 import { resolveClinicAccess } from "@/lib/clinic-access";
 import {
   isEmailConfigured,
+  requiresEmailVerification,
   resetPasswordEmail,
   sendEmail,
   verificationEmail,
@@ -21,6 +22,14 @@ import {
 import { stripeModeFor } from "@/lib/stripe-mode";
 import { sessionPlans } from "@/lib/support/admin";
 import { ACCEPT_TERMS_HEADER, termsAcceptanceForNewUser } from "@/lib/terms";
+
+// Without e-mail in production nobody can confirm an address, so sign-ups
+// can't sign in until it is configured (better than an open door).
+if (process.env.VERCEL_ENV === "production" && !isEmailConfigured()) {
+  console.error(
+    "RESEND_API_KEY/EMAIL_FROM are missing in production: sign-ups can't verify their e-mail and won't be able to sign in.",
+  );
+}
 
 export const auth = betterAuth({
   advanced: {
@@ -196,9 +205,16 @@ export const auth = betterAuth({
   },
   account: {
     modelName: "accountsTable",
+    // Google's access and refresh tokens are stored encrypted, so a database
+    // leak doesn't hand out access to people's Google accounts. Tokens saved
+    // before this are read as they are.
+    encryptOAuthTokens: true,
   },
   verification: {
     modelName: "verificationsTable",
+    // Reset and verification tokens are stored hashed, so a database leak
+    // doesn't hand out working links.
+    storeIdentifier: "hashed",
   },
   emailAndPassword: {
     enabled: true,
@@ -206,7 +222,7 @@ export const auth = betterAuth({
     maxPasswordLength: 128,
     // Without verification anyone could sign up with someone else's email
     // and enter patient data under that identity.
-    requireEmailVerification: isEmailConfigured(),
+    requireEmailVerification: requiresEmailVerification(),
     sendResetPassword: async ({ user, url }) => {
       await sendEmail({ to: user.email, ...resetPasswordEmail(url) });
     },

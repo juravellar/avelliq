@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appUrl,
   isEmailConfigured,
+  requiresEmailVerification,
   resetPasswordEmail,
   sendEmail,
   supportReplyEmail,
@@ -15,6 +16,21 @@ describe("email", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+  });
+
+  it("requires verification when e-mail is set up or in production", () => {
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("EMAIL_FROM", "");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect(requiresEmailVerification()).toBe(false);
+
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(requiresEmailVerification()).toBe(true);
+
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("RESEND_API_KEY", "re_x");
+    vi.stubEnv("EMAIL_FROM", "Avelliq <a@b.com>");
+    expect(requiresEmailVerification()).toBe(true);
   });
 
   it("is off unless both the API key and the sender are set", () => {

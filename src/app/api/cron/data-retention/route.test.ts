@@ -84,6 +84,7 @@ describe("data-retention cron", () => {
   it("refuses a request without the cron secret", async () => {
     expect((await GET(request())).status).toBe(401);
     expect((await GET(request("Bearer wrong"))).status).toBe(401);
+    expect((await GET(request("Bearer s3creT"))).status).toBe(401);
     expect(mocks.deleted).not.toHaveBeenCalled();
   });
 

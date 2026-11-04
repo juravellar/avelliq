@@ -175,11 +175,13 @@ Esta seção é para quem testa o Avelliq pelo navegador, sem precisar ler códi
    | `SUPPORT_EMAIL` | E-mail de suporte e canal de privacidade, mostrado na Política de Privacidade, nos Termos e a quem precisa alterar as clínicas ativas antes dos 30 dias. Use um e-mail do domínio, não um pessoal |
    | `SUPPORT_INBOX` | Caixa que recebe o aviso por e-mail de cada mensagem do "Falar com a equipe" (opcional; sem ela, vai para `SUPPORT_EMAIL`, o recomendado). Nunca aparece nas páginas. O atendimento em si sempre aparece na tela de Atendimento, mas um e-mail pessoal aqui faz quem responder pelo programa de e-mail mostrar esse endereço ao cliente, e essa resposta não entra no histórico. Exige `RESEND_API_KEY` e `EMAIL_FROM` |
    | `RESEND_INBOUND_WEBHOOK_SECRET` | *Signing secret* (`whsec_...`) do webhook `email.received` do Resend, que traz os e-mails recebidos na hora (veja Atendimento). Opcional: sem ele, os e-mails chegam pela importação, com alguns minutos de atraso |
-   | `RESEND_RECEIVING_API_KEY` | Chave do Resend com permissão **Full access**, usada só pela tela de Atendimento para importar os e-mails recebidos (a chave de envio, `RESEND_API_KEY`, pode continuar só com envio). Opcional |
+   | `RESEND_RECEIVING_API_KEY` | Chave do Resend com permissão **Full access**, usada só pela tela de Atendimento para importar os e-mails recebidos (a chave de envio, `RESEND_API_KEY`, pode continuar só com envio). Opcional A importação só roda na produção (`VERCEL_ENV=production`), para um preview ou o `.env.local` não copiar a caixa real; `SUPPORT_INBOX_SYNC=1` liga em outro ambiente, para testes |
    | `SUPPORT_ADMIN_EMAILS` | E-mails (separados por vírgula) das contas principais do Avelliq: veem o Atendimento e a tela Contas, onde escolhem quem é Admin, Suporte e QA. A conta precisa ter o e-mail confirmado. Opcional |
    | `LEGAL_CNPJ` | CNPJ mostrado na Política de Privacidade e nos Termos (opcional). Fica fora do código porque o repositório é público |
    | `RESEND_API_KEY`, `EMAIL_FROM` | Envio de emails pelo [Resend](https://resend.com). Com as duas definidas, a conta só é liberada depois de confirmar o email e o "Esqueci minha senha" fica disponível (opcional) |
    | `CRON_SECRET` | Segredo da limpeza diária (Vercel Cron) de sessões expiradas e registros de auditoria com mais de 5 anos. Sem ele, a limpeza não roda |
+
+   Ao subir a versão que guarda os tokens do Google criptografados e os links de e-mail com hash, os links de confirmação de e-mail e de redefinição de senha que já estavam pendentes deixam de funcionar; é só pedir outro. Os tokens antigos continuam sendo lidos normalmente. Em produção, a confirmação de e-mail é sempre exigida: sem `RESEND_API_KEY` e `EMAIL_FROM`, ninguém consegue entrar com uma conta nova.
 
 3. Crie as tabelas no banco a partir do schema:
 

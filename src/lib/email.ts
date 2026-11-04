@@ -5,6 +5,12 @@ const RESEND_API_URL = "https://api.resend.com/emails";
 export const isEmailConfigured = () =>
   Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
 
+// Verification is required when e-mail can be sent, and always in production:
+// there, missing e-mail settings must not leave sign-up open to anyone using
+// someone else's address.
+export const requiresEmailVerification = () =>
+  isEmailConfigured() || process.env.VERCEL_ENV === "production";
+
 const escapeHtml = (value: string) =>
   value.replace(
     /[&<>"']/g,

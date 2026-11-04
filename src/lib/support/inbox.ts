@@ -4,10 +4,17 @@ import type { ReceivedEmail, ReceivedEmailSummary } from "./inbox-helpers";
 // code imports this file: the key reads the whole inbox.
 const RECEIVING_URL = "https://api.resend.com/emails/receiving";
 
+// Only production imports the real inbox: any other environment holding the
+// key (a preview, a laptop with .env.local) would copy customers' e-mails into
+// its own database. SUPPORT_INBOX_SYNC=1 opts in on purpose, for testing.
+export const isInboxEnvironment = () =>
+  process.env.VERCEL_ENV === "production" ||
+  process.env.SUPPORT_INBOX_SYNC === "1";
+
 // A full-access key, separate from the sending key the app uses everywhere
 // else, so the everyday key never needs that much power.
 export const isInboxConfigured = () =>
-  Boolean(process.env.RESEND_RECEIVING_API_KEY);
+  Boolean(process.env.RESEND_RECEIVING_API_KEY) && isInboxEnvironment();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isReceivedEmailId = (id: string) => UUID.test(id);

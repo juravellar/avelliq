@@ -34,6 +34,8 @@ vi.mock("@/db", () => {
   return { db };
 });
 
+import { TERMS_VERSION } from "@/lib/terms";
+
 import { upsertDoctor } from ".";
 
 const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
@@ -54,7 +56,11 @@ describe("upsertDoctor", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.getSession.mockResolvedValue({
-      user: { plan: "essential", clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: "essential",
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.countDoctors.mockResolvedValue(0);
   });
@@ -136,7 +142,11 @@ describe("upsertDoctor", () => {
 
   it("blocks a second doctor on the Free plan", async () => {
     mocks.getSession.mockResolvedValue({
-      user: { plan: null, clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: null,
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.findDoctor.mockResolvedValue(undefined);
     mocks.countDoctors.mockResolvedValue(1);
@@ -161,7 +171,11 @@ describe("upsertDoctor", () => {
 
   it("does not count limits when editing an existing doctor", async () => {
     mocks.getSession.mockResolvedValue({
-      user: { plan: null, clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: null,
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.findDoctor.mockResolvedValue({ id: DOCTOR_ID, clinicId: CLINIC_ID });
     mocks.countDoctors.mockResolvedValue(1);
@@ -192,6 +206,7 @@ describe("upsertDoctor", () => {
     vi.setSystemTime(new Date("2027-03-01T12:00:00Z"));
     mocks.getSession.mockResolvedValue({
       user: {
+        termsVersion: TERMS_VERSION,
         plan: null,
         freePeriodStartsAt: new Date("2026-11-10T15:00:00Z"),
         clinic: { id: CLINIC_ID, writable: true },
@@ -212,6 +227,7 @@ describe("upsertDoctor", () => {
     vi.setSystemTime(new Date("2027-03-01T12:00:00Z"));
     mocks.getSession.mockResolvedValue({
       user: {
+        termsVersion: TERMS_VERSION,
         plan: "essential",
         freePeriodStartsAt: new Date("2026-11-10T15:00:00Z"),
         clinic: { id: CLINIC_ID, writable: true },

@@ -42,12 +42,16 @@ import { medicalSpecialties } from "../_constants";
 
 const formSchema = z
   .object({
-    name: z.string().trim().min(1, {
-      message: "Nome é obrigatório.",
-    }),
-    specialty: z.string().trim().min(1, {
-      message: "Especialidade é obrigatória.",
-    }),
+    name: z
+      .string()
+      .trim()
+      .min(1, { message: "Nome é obrigatório." })
+      .max(120, { message: "Use até 120 caracteres." }),
+    specialty: z
+      .string()
+      .trim()
+      .min(1, { message: "Especialidade é obrigatória." })
+      .max(120, { message: "Use até 120 caracteres." }),
     appointmentPrice: priceInReaisSchema("Preço da consulta é obrigatório."),
     availableFromWeekDay: z.string(),
     availableToWeekDay: z.string(),

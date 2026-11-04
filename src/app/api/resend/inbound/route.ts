@@ -1,5 +1,9 @@
 import { isValidInboundSignature } from "@/lib/support/inbound-signature";
-import { getReceivedEmail, isInboxConfigured } from "@/lib/support/inbox";
+import {
+  getReceivedEmail,
+  isInboxConfigured,
+  isInboxEnvironment,
+} from "@/lib/support/inbox";
 import { importReceivedEmail } from "@/lib/support/tickets";
 
 // Resend calls this as soon as an e-mail reaches the domain
@@ -8,6 +12,11 @@ import { importReceivedEmail } from "@/lib/support/tickets";
 // a fallback: an e-mail already stored is skipped, so a delivery repeated
 // by Resend changes nothing.
 export async function POST(request: Request) {
+  // Outside production the call is acknowledged and dropped, so Resend
+  // doesn't keep retrying a webhook that points at a non-production copy.
+  if (!isInboxEnvironment()) {
+    return Response.json({ ignored: true });
+  }
   const secret = process.env.RESEND_INBOUND_WEBHOOK_SECRET;
   if (!secret || !isInboxConfigured()) {
     return new Response("Not configured", { status: 503 });
