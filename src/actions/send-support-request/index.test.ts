@@ -12,6 +12,7 @@ vi.mock("@/lib/support/tickets", () => ({
   createFormTicket: mocks.createFormTicket,
   acknowledge: mocks.acknowledge,
   TICKET_HEADER: "X-Avelliq-Protocol",
+  formNoticeHeader: (protocol: string) => `${protocol}; assinatura`,
 }));
 vi.mock("next/headers", () => ({ headers: async () => mocks.headers }));
 vi.mock("@/lib/auth", () => ({
@@ -82,7 +83,7 @@ describe("sendSupportRequest", () => {
       to: "equipe@example.com",
       replyTo: "ana@clinica.com",
       subject: expect.stringContaining("[Avelliq · Protocolo AV-000042]"),
-      headers: { "X-Avelliq-Protocol": "AV-000042" },
+      headers: { "X-Avelliq-Protocol": "AV-000042; assinatura" },
     });
     expect(mocks.acknowledge).toHaveBeenCalledWith(
       expect.objectContaining({ number: 42 }),

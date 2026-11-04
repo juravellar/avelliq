@@ -57,6 +57,7 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     vi.stubEnv("SUPPORT_INBOX", "");
     vi.stubEnv("EMAIL_FROM", "Avelliq <nao-responda@mail.avelliq.com.br>");
     vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("BETTER_AUTH_SECRET", "segredo-dos-testes");
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.sendEmail.mockResolvedValue(undefined);
     customer = `cliente-${randomUUID().slice(0, 8)}@x.com`;
@@ -185,8 +186,12 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
   });
 
   it("links the help form's notice to the ticket the form opened", async () => {
-    const { createFormTicket, importReceivedEmail, TICKET_HEADER } =
-      await load();
+    const {
+      createFormTicket,
+      formNoticeHeader,
+      importReceivedEmail,
+      TICKET_HEADER,
+    } = await load();
     const ticket = await createFormTicket({
       name: "Ana",
       email: customer,
@@ -200,7 +205,11 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
         from: "Avelliq <nao-responda@mail.avelliq.com.br>",
         reply_to: [customer],
         subject: `[Avelliq · Protocolo ${ticket.protocol}] Dúvida: horário`,
-        headers: { [TICKET_HEADER.toLowerCase()]: ticket.protocol },
+        headers: {
+          [TICKET_HEADER.toLowerCase()]: formNoticeHeader(ticket.protocol),
+        },
+        // Avelliq's own domain publishes no DMARC policy.
+        authentication: { spf: "pass", dkim: "pass", dmarc: "gray" },
       }),
       NOW,
     );
@@ -211,6 +220,49 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(messages[0].resendEmailId).not.toBeNull();
     // The team's notice is not an e-mail the customer can be answered on.
     expect(messages[0].messageId).toBeNull();
+  });
+
+  it("doesn't take an unsigned, unverified notice for the form's", async () => {
+    const { createFormTicket, importReceivedEmail, TICKET_HEADER } =
+      await load();
+    const ticket = await createFormTicket({
+      name: "Ana",
+      email: customer,
+      subject: "Dúvida: horário",
+      message: "Como mudo o horário?",
+      context: "Conta: user_1",
+    });
+
+    const fake = await importReceivedEmail(
+      received({
+        from: "Avelliq <nao-responda@mail.avelliq.com.br>",
+        reply_to: [customer],
+        subject: `[Avelliq · Protocolo ${ticket.protocol}] Dúvida`,
+        headers: { [TICKET_HEADER.toLowerCase()]: `${ticket.protocol}; falsa` },
+        authentication: { dmarc: "gray" },
+      }),
+      NOW,
+    );
+
+    expect(fake?.opened).toBe(true);
+  });
+
+  it("joins a reply from a domain without DMARC to its ticket", async () => {
+    const { importReceivedEmail } = await load();
+    const first = received({ from: customer });
+    const opened = (await importReceivedEmail(first, NOW))!.ticket;
+
+    const reply = await importReceivedEmail(
+      received({
+        from: customer,
+        headers: { "in-reply-to": first.message_id! },
+        authentication: { spf: "pass", dkim: "pass", dmarc: "gray" },
+      }),
+      NOW,
+    );
+
+    expect(reply?.opened).toBe(false);
+    expect(reply?.ticket.id).toBe(opened.id);
   });
 
   it("links the form's notice by its subject when the header is lost", async () => {

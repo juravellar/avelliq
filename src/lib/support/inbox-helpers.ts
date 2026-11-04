@@ -10,7 +10,7 @@ export interface ReceivedEmailSummary {
   reply_to?: string[] | null;
   // SPF, DKIM and DMARC as checked by Resend on arrival (only on the full
   // e-mail; null for mail received before Resend added it).
-  authentication?: { dmarc?: string } | null;
+  authentication?: { dmarc?: string; spf?: string; dkim?: string } | null;
 }
 
 export interface ReceivedEmail extends ReceivedEmailSummary {
