@@ -39,7 +39,27 @@ const BENEFITS = [
   },
 ];
 
-const AuthenticationPage = async () => {
+// Why "Entrar com Google" came back here (Better Auth's ?error=).
+const GOOGLE_ERRORS: Record<string, string> = {
+  // An account with this e-mail exists, created with a password, and its
+  // e-mail was never confirmed. Better Auth won't attach Google to it: whoever
+  // created it may not own the address.
+  account_not_linked:
+    'Já existe uma conta com este e-mail, criada com senha, e o e-mail dela ainda não foi confirmado. Entre com e-mail e senha para receber o link de confirmação (se não lembrar a senha, use "Esqueci minha senha"). Depois de confirmar, o login com Google passa a funcionar.',
+  access_denied: "O login com Google foi cancelado.",
+};
+
+const googleErrorMessage = (error: string | undefined) =>
+  error
+    ? (GOOGLE_ERRORS[error] ??
+      "Não foi possível entrar com o Google. Tente de novo. Se continuar, abra o site direto no navegador do celular, e não por um link dentro de outro aplicativo.")
+    : null;
+
+const AuthenticationPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) => {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -47,6 +67,7 @@ const AuthenticationPage = async () => {
   if (session?.user) {
     redirect("/painel");
   }
+  const googleError = googleErrorMessage((await searchParams).error);
 
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-2">
@@ -82,6 +103,14 @@ const AuthenticationPage = async () => {
           <Image src="/logo-symbol.svg" alt="" width={28} height={28} />
           Avelliq
         </div>
+        {googleError && (
+          <p
+            role="alert"
+            className="border-warning-border bg-warning-muted text-warning-foreground w-full max-w-[420px] rounded-lg border p-3 text-sm"
+          >
+            {googleError}
+          </p>
+        )}
         <Tabs defaultValue="login" className="w-full max-w-[420px]">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Entrar</TabsTrigger>
