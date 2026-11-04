@@ -4,8 +4,8 @@ import { after } from "next/server";
 import { db } from "@/db";
 import { supportInboxSyncTable } from "@/db/schema";
 
+import { syncInbox } from "./import";
 import { isInboxConfigured } from "./inbox";
-import { syncInbox } from "./tickets";
 
 const REFRESH_EVERY_MS = 2 * 60 * 1000;
 const LEASE_KEY = "inbox";

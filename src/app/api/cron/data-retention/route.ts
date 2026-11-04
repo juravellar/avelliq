@@ -7,7 +7,7 @@ import { auditLogsTable, sessionsTable, verificationsTable } from "@/db/schema";
 import {
   deleteExpiredTickets,
   TICKET_RETENTION_YEARS,
-} from "@/lib/support/tickets";
+} from "@/lib/support/retention";
 
 // Sessions keep the IP address and browser of each sign-in. Once expired they
 // serve no purpose, so they are deleted instead of piling up (LGPD art. 16).

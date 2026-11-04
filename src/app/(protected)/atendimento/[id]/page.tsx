@@ -17,10 +17,10 @@ import { isReceivedEmailId } from "@/lib/support/inbox";
 import { isOwnAddress } from "@/lib/support/inbox-helpers";
 import {
   getTicket,
-  isSupportTicket,
   markSeenByTeam,
   ticketIdOfEmail,
-} from "@/lib/support/tickets";
+} from "@/lib/support/team-queries";
+import { isSupportTicket } from "@/lib/support/tickets";
 import {
   isFinalStatus,
   isNewForTeam,

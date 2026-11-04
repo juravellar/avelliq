@@ -13,12 +13,10 @@ import { auth } from "@/lib/auth";
 import { isEmailConfigured, sendEmail, supportReplyEmail } from "@/lib/email";
 import { actionClient } from "@/lib/next-safe-action";
 import { canAnswerSupport, isSupportOwner } from "@/lib/support/admin";
+import { customerTicketUrl } from "@/lib/support/import";
 import { isOwnAddress } from "@/lib/support/inbox-helpers";
-import {
-  customerTicketUrl,
-  getTicket,
-  isSupportTicket,
-} from "@/lib/support/tickets";
+import { getTicket } from "@/lib/support/team-queries";
+import { isSupportTicket } from "@/lib/support/tickets";
 import {
   FINAL_STATUSES,
   isFinalStatus,

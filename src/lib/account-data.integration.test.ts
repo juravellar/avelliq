@@ -118,9 +118,8 @@ describe.skipIf(!databaseUrl)("account data against Postgres", () => {
   it("exports and deletes support tickets only for a confirmed e-mail", async () => {
     const { collectAccountData, deleteAccountData, withUserLock } =
       await load();
-    const { importReceivedEmail, ticketsOf } = await import(
-      "./support/tickets"
-    );
+    const { importReceivedEmail } = await import("./support/import");
+    const { ticketsOf } = await import("./support/retention");
     const ticketFor = (userId: string) =>
       importReceivedEmail({
         id: randomUUID(),

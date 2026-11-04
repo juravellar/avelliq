@@ -25,7 +25,7 @@ import {
   listTickets,
   type TicketFilter,
   TICKETS_PAGE_SIZE,
-} from "@/lib/support/tickets";
+} from "@/lib/support/team-queries";
 import {
   isFinalStatus,
   isNewForTeam,

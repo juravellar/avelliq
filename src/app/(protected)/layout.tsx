@@ -10,8 +10,9 @@ import {
   canSeeSupportInbox,
   isSupportOwner,
 } from "@/lib/support/admin";
+import { countUnreadTickets } from "@/lib/support/customer-queries";
 import { refreshInboxSoon } from "@/lib/support/inbox-refresh";
-import { countNewForTeam, countUnreadTickets } from "@/lib/support/tickets";
+import { countNewForTeam } from "@/lib/support/team-queries";
 
 import { AccountStatusBanner } from "./_components/account-status-banner";
 import { AppBreadcrumb } from "./_components/app-breadcrumb";

@@ -19,10 +19,14 @@ vi.mock("@/lib/email", async (importOriginal) => ({
   sendEmail: mocks.sendEmail,
   isEmailConfigured: () => true,
 }));
-vi.mock("@/lib/support/tickets", () => ({
+vi.mock("@/lib/support/team-queries", () => ({
   getTicket: mocks.getTicket,
+}));
+vi.mock("@/lib/support/import", () => ({
   customerTicketUrl: async () =>
     "https://www.avelliq.com.br/painel?atendimento=4ef9a417",
+}));
+vi.mock("@/lib/support/tickets", () => ({
   isSupportTicket: (ticket: { source: string; inbox: string }) =>
     ticket.source === "form" || ticket.inbox === "sac@mail.avelliq.com.br",
 }));

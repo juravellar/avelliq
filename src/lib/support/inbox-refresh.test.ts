@@ -11,7 +11,7 @@ vi.mock("next/server", () => ({
   after: (task: () => Promise<unknown>) => mocks.after(task),
 }));
 vi.mock("./inbox", () => ({ isInboxConfigured: mocks.configured }));
-vi.mock("./tickets", () => ({ syncInbox: mocks.syncInbox }));
+vi.mock("./import", () => ({ syncInbox: mocks.syncInbox }));
 vi.mock("@/db", () => ({
   db: {
     insert: () => ({

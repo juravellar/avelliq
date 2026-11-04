@@ -8,7 +8,7 @@ import {
   customerTicket,
   customerTickets,
   markSeenByCustomer,
-} from "@/lib/support/tickets";
+} from "@/lib/support/customer-queries";
 import { protocolOf } from "@/lib/support/tickets-helpers";
 import { userActionClient } from "@/lib/user-action";
 

@@ -14,7 +14,7 @@ vi.mock("@/lib/support/inbox", () => ({
   isInboxEnvironment: () => mocks.production(),
   getReceivedEmail: mocks.getReceivedEmail,
 }));
-vi.mock("@/lib/support/tickets", () => ({
+vi.mock("@/lib/support/import", () => ({
   importReceivedEmail: mocks.importReceivedEmail,
 }));
 

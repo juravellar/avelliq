@@ -1,10 +1,10 @@
+import { importReceivedEmail } from "@/lib/support/import";
 import { isValidInboundSignature } from "@/lib/support/inbound-signature";
 import {
   getReceivedEmail,
   isInboxConfigured,
   isInboxEnvironment,
 } from "@/lib/support/inbox";
-import { importReceivedEmail } from "@/lib/support/tickets";
 
 // Resend calls this as soon as an e-mail reaches the domain
 // (event email.received), so it shows up in the Atendimento and in the

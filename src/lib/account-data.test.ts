@@ -10,7 +10,7 @@ vi.mock("@/lib/stripe-client", () => ({ stripeClient: vi.fn() }));
 vi.mock("@/lib/stripe-subscription-sync", () => ({
   listCustomerSubscriptions: vi.fn(),
 }));
-vi.mock("@/lib/support/tickets", () => ({
+vi.mock("@/lib/support/retention", () => ({
   ticketsOf: mocks.ticketsOf,
   deleteTicketsOf: mocks.deleteTicketsOf,
 }));

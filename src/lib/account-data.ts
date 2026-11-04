@@ -14,7 +14,7 @@ import {
 import { stripeClient } from "@/lib/stripe-client";
 import type { StripeMode } from "@/lib/stripe-mode";
 import { listCustomerSubscriptions } from "@/lib/stripe-subscription-sync";
-import { deleteTicketsOf, ticketsOf } from "@/lib/support/tickets";
+import { deleteTicketsOf, ticketsOf } from "@/lib/support/retention";
 
 /**
  * Everything the app stores about the user and their clinics, for the

@@ -45,8 +45,22 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     process.env.DATABASE_URL = databaseUrl;
     const { db } = await import("@/db");
     const schema = await import("@/db/schema");
-    const tickets = await import("./tickets");
-    return { db, schema, ...tickets };
+    const [tickets, imports, team, customer, retention] = await Promise.all([
+      import("./tickets"),
+      import("./import"),
+      import("./team-queries"),
+      import("./customer-queries"),
+      import("./retention"),
+    ]);
+    return {
+      db,
+      schema,
+      ...tickets,
+      ...imports,
+      ...team,
+      ...customer,
+      ...retention,
+    };
   };
 
   // A different customer per test: the database is shared.
