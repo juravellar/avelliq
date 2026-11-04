@@ -67,9 +67,16 @@ export default function SupportPanel({
   user,
   supportEmail,
   unreadTickets = 0,
-}: SupportPanelProps & { id: string; open: boolean; onClose: () => void }) {
-  const [view, setView] = useState<View>("chat");
-  const [ticketId, setTicketId] = useState<string | null>(null);
+  initialTicketId = null,
+}: SupportPanelProps & {
+  id: string;
+  open: boolean;
+  onClose: () => void;
+  // Opened from an e-mail's link: starts on that conversation.
+  initialTicketId?: string | null;
+}) {
+  const [view, setView] = useState<View>(initialTicketId ? "ticket" : "chat");
+  const [ticketId, setTicketId] = useState<string | null>(initialTicketId);
   // A new ticket opened to disagree starts by quoting the old protocol.
   const [formMessage, setFormMessage] = useState("");
   const [draft, setDraft] = useState("");

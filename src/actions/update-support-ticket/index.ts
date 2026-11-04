@@ -14,7 +14,11 @@ import { isEmailConfigured, sendEmail, supportReplyEmail } from "@/lib/email";
 import { actionClient } from "@/lib/next-safe-action";
 import { canAnswerSupport, isSupportOwner } from "@/lib/support/admin";
 import { isOwnAddress } from "@/lib/support/inbox-helpers";
-import { getTicket, isSupportTicket } from "@/lib/support/tickets";
+import {
+  customerTicketUrl,
+  getTicket,
+  isSupportTicket,
+} from "@/lib/support/tickets";
 import {
   isFinalStatus,
   protocolOf,
@@ -96,6 +100,7 @@ export const updateSupportTicket = actionClient
           finalStatusName: isFinalStatus(status)
             ? STATUS_NAMES[status].toLowerCase()
             : undefined,
+          ticketUrl: await customerTicketUrl(ticket),
         }),
         headers: ticketThreadHeaders(
           customerMessages.map(({ messageId }) => messageId ?? ""),

@@ -20,6 +20,8 @@ vi.mock("@/lib/email", async (importOriginal) => ({
 }));
 vi.mock("@/lib/support/tickets", () => ({
   getTicket: mocks.getTicket,
+  customerTicketUrl: async () =>
+    "https://www.avelliq.com.br/painel?atendimento=4ef9a417",
   isSupportTicket: (ticket: { source: string; inbox: string }) =>
     ticket.source === "form" || ticket.inbox === "sac@mail.avelliq.com.br",
 }));
@@ -105,6 +107,8 @@ describe("updateSupportTicket", () => {
     });
     expect(sent.text).toContain("Protocolo: AV-000007");
     expect(sent.text).toContain("> Alguma novidade?");
+    expect(sent.html).toContain("Ver conversa no Avelliq");
+    expect(sent.text).toContain("/painel?atendimento=4ef9a417");
     expect(sent.text).not.toContain("contestar");
     expect(mocks.inserted).toHaveBeenCalledWith(
       expect.objectContaining({
