@@ -56,7 +56,6 @@ export default function TopSpecialties({
     <Card className="w-full">
       <DashboardCardHeader icon={Hospital} title="Especialidades" />
       <CardContent>
-
         {!hasSpecialties ? (
           <div className="text-muted-foreground py-8 text-center text-sm">
             Nenhum agendamento no período.
@@ -78,9 +77,11 @@ export default function TopSpecialties({
                   <div className="bg-primary/10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
                     <Icon className="text-primary h-5 w-5" />
                   </div>
-                  <div className="flex min-w-0 w-full flex-col justify-center">
+                  <div className="flex w-full min-w-0 flex-col justify-center">
                     <div className="flex w-full justify-between gap-2">
-                      <h3 className="truncate text-sm">{specialty.specialty}</h3>
+                      <h3 className="truncate text-sm">
+                        {specialty.specialty}
+                      </h3>
                       <div className="shrink-0 text-right">
                         <span className="text-muted-foreground text-sm font-medium whitespace-nowrap">
                           {specialty.appointments} agend.

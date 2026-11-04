@@ -17,15 +17,18 @@ import { isOwnAddress } from "@/lib/support/inbox-helpers";
 import {
   getTicket,
   isSupportTicket,
+  markSeenByTeam,
   ticketIdOfEmail,
 } from "@/lib/support/tickets";
 import {
   isFinalStatus,
+  isNewForTeam,
   protocolOf,
   splitQuotedReply,
   STATUS_NAMES,
 } from "@/lib/support/tickets-helpers";
 
+import { RefreshSupportAlert } from "../../_components/support-alert";
 import { StatusBadge, StatusSteps } from "../_components/status-badge";
 import { TicketUpdateForm } from "../_components/ticket-update-form";
 
@@ -142,12 +145,18 @@ const TicketPage = async ({ params }: { params: Promise<{ id: string }> }) => {
     notFound();
   }
 
+  // Seen by the team once someone who answers opens it. QA only looks, and
+  // its visit mustn't hide the message from support.
+  if (canAnswerSupport(session?.user) && isNewForTeam(ticket)) {
+    await markSeenByTeam(ticket.id);
+  }
   const protocol = protocolOf(ticket.number);
   const final = isFinalStatus(ticket.status);
   const canEmail = !isOwnAddress(ticket.customerEmail);
 
   return (
     <PageContainer>
+      <RefreshSupportAlert />
       <Button variant="ghost" asChild className="-ml-2 w-fit">
         <Link href="/atendimento" prefetch={false}>
           <ArrowLeft className="h-4 w-4" />

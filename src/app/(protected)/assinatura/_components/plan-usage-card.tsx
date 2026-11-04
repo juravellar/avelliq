@@ -60,17 +60,19 @@ function UsageTile({
         atLimit ? "border-warning-border bg-warning-muted" : "bg-muted/40",
       )}
     >
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground/80">
-        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
+      <div className="text-foreground/80 flex items-center gap-2 text-sm font-medium">
+        <Icon className="text-muted-foreground h-4 w-4" aria-hidden />
         {metric.label}
       </div>
 
       <div className="flex items-baseline gap-1.5">
-        <span className="text-3xl font-semibold text-foreground">
+        <span className="text-foreground text-3xl font-semibold">
           {usage.used}
         </span>
         {usage.limit !== null && (
-          <span className="text-base text-muted-foreground">de {usage.limit}</span>
+          <span className="text-muted-foreground text-base">
+            de {usage.limit}
+          </span>
         )}
       </div>
 
@@ -88,12 +90,16 @@ function UsageTile({
         <p
           className={cn(
             "text-sm",
-            atLimit ? "font-medium text-warning-foreground" : "text-muted-foreground",
+            atLimit
+              ? "text-warning-foreground font-medium"
+              : "text-muted-foreground",
           )}
         >
           {statusText(usage, planName)}
         </p>
-        {metric.note && <p className="text-xs text-muted-foreground">{metric.note}</p>}
+        {metric.note && (
+          <p className="text-muted-foreground text-xs">{metric.note}</p>
+        )}
       </div>
     </div>
   );
@@ -111,7 +117,7 @@ export function PlanUsageCard({
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Seu uso no plano {planName}</CardTitle>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Cadastros da sua clínica e o que o seu plano permite.
         </p>
       </CardHeader>
@@ -127,7 +133,7 @@ export function PlanUsageCard({
           ))}
         </div>
         {anyAtLimit && (
-          <p className="text-sm text-warning-foreground">
+          <p className="text-warning-foreground text-sm">
             Você atingiu um limite do seu plano. Para continuar cadastrando,
             escolha um plano maior abaixo.
           </p>

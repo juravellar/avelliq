@@ -14,7 +14,7 @@ export type AppointmentWithRelations = typeof appointmentsTable.$inferSelect & {
 interface DashboardAppointmentsTableProps {
   appointments: AppointmentWithRelations[];
   patients: PatientOption[];
-  doctors: typeof doctorsTable.$inferSelect[];
+  doctors: (typeof doctorsTable.$inferSelect)[];
 }
 
 export default function DashboardAppointmentsTable({

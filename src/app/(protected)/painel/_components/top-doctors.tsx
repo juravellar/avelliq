@@ -20,7 +20,6 @@ export default function TopDoctors({ doctors }: TopDoctorsProps) {
     <Card className="w-full">
       <DashboardCardHeader icon={Stethoscope} title="Médicos" />
       <CardContent>
-
         {doctors.length === 0 ? (
           <div className="text-muted-foreground py-8 text-center text-sm">
             Nenhum médico cadastrado.
@@ -34,7 +33,7 @@ export default function TopDoctors({ doctors }: TopDoctorsProps) {
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarFallback className="bg-muted text-lg font-medium text-muted-foreground">
+                    <AvatarFallback className="bg-muted text-muted-foreground text-lg font-medium">
                       {doctor.name
                         .split(" ")
                         .map((n) => n[0])

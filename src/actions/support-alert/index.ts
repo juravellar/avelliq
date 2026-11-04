@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { actionClient } from "@/lib/next-safe-action";
 import { canSeeSupportInbox, isSupportOwner } from "@/lib/support/admin";
 import { refreshInboxSoon } from "@/lib/support/inbox-refresh";
-import { countAwaitingTeam } from "@/lib/support/tickets";
+import { countNewForTeam } from "@/lib/support/tickets";
 
 // How many tickets wait for the team, polled by the alert in the header.
 export const getSupportAlert = actionClient.action(async () => {
@@ -16,7 +16,7 @@ export const getSupportAlert = actionClient.action(async () => {
   }
   refreshInboxSoon();
   return {
-    awaiting: await countAwaitingTeam({
+    awaiting: await countNewForTeam({
       seesAll: isSupportOwner(session?.user),
     }),
   };

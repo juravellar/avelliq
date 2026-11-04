@@ -166,3 +166,15 @@ export const updateProblem = ({
   }
   return null;
 };
+
+// A customer message nobody on the team who answers has opened yet: what
+// the header alert counts.
+export const isNewForTeam = (ticket: {
+  awaitingTeam: boolean;
+  status: SupportStatus;
+  lastMessageAt: Date;
+  teamSeenAt: Date | null;
+}) =>
+  ticket.awaitingTeam &&
+  !isFinalStatus(ticket.status) &&
+  (!ticket.teamSeenAt || ticket.lastMessageAt > ticket.teamSeenAt);

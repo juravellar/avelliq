@@ -4,6 +4,7 @@ import type { ReceivedEmail } from "./inbox-helpers";
 import {
   cleanSubject,
   isAutomatedEmail,
+  isNewForTeam,
   parseProtocol,
   protocolOf,
   protocolSearch,
@@ -181,5 +182,23 @@ describe("ticket helpers", () => {
         next: "received",
       }),
     ).toContain("não há para quem enviar");
+  });
+
+  it("tells a message the team hasn't opened from one it has", () => {
+    const open = {
+      awaitingTeam: true,
+      status: "in_review" as const,
+      lastMessageAt: new Date("2026-11-04T12:00:00Z"),
+      teamSeenAt: null,
+    };
+    expect(isNewForTeam(open)).toBe(true);
+    expect(
+      isNewForTeam({ ...open, teamSeenAt: new Date("2026-11-04T12:05:00Z") }),
+    ).toBe(false);
+    expect(
+      isNewForTeam({ ...open, teamSeenAt: new Date("2026-11-04T11:00:00Z") }),
+    ).toBe(true);
+    expect(isNewForTeam({ ...open, awaitingTeam: false })).toBe(false);
+    expect(isNewForTeam({ ...open, status: "archived" })).toBe(false);
   });
 });

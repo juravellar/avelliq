@@ -518,21 +518,34 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     });
   });
 
-  it("counts the open tickets waiting for the team", async () => {
-    const { db, schema, importReceivedEmail, countAwaitingTeam } = await load();
+  it("counts new customer messages until someone on the team opens them", async () => {
+    const { db, schema, importReceivedEmail, countNewForTeam, markSeenByTeam } =
+      await load();
     const { eq } = await import("drizzle-orm");
-    const before = await countAwaitingTeam({ seesAll: true });
-    const opened = (await importReceivedEmail(
-      received({ from: customer }),
+    const before = await countNewForTeam({ seesAll: true });
+    const first = received({ from: customer });
+    const opened = (await importReceivedEmail(first, NOW))!.ticket;
+    expect(await countNewForTeam({ seesAll: true })).toBe(before + 1);
+
+    await markSeenByTeam(opened.id);
+    expect(await countNewForTeam({ seesAll: true })).toBe(before);
+
+    // The customer writes again after the team looked: new again.
+    await importReceivedEmail(
+      received({
+        from: customer,
+        headers: { "in-reply-to": first.message_id! },
+        created_at: new Date(Date.now() + 60_000).toISOString(),
+      }),
       NOW,
-    ))!.ticket;
-    expect(await countAwaitingTeam({ seesAll: true })).toBe(before + 1);
+    );
+    expect(await countNewForTeam({ seesAll: true })).toBe(before + 1);
 
     await db
       .update(schema.supportTicketsTable)
       .set({ status: "concluded" })
       .where(eq(schema.supportTicketsTable.id, opened.id));
-    expect(await countAwaitingTeam({ seesAll: true })).toBe(before);
+    expect(await countNewForTeam({ seesAll: true })).toBe(before);
   });
 
   it("exports and deletes a customer's tickets", async () => {

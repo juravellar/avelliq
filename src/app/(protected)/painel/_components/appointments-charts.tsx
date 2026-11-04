@@ -72,7 +72,10 @@ const AppointmentsChart = ({
 
   return (
     <Card>
-      <DashboardCardHeader icon={DollarSign} title="Agendamentos e Faturamento" />
+      <DashboardCardHeader
+        icon={DollarSign}
+        title="Agendamentos e Faturamento"
+      />
       <CardContent>
         <ChartContainer
           config={chartConfig}
