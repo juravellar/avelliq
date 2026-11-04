@@ -86,7 +86,7 @@ export function MyTicketList({
     );
   }
   return (
-    <ul className="flex-1 divide-y overflow-y-auto">
+    <ul className="flex-1 divide-y overflow-y-auto overscroll-contain">
       {list.result.data.map((ticket) => (
         <li key={ticket.id}>
           <button
@@ -188,7 +188,7 @@ export function MyTicket({
       <div
         ref={listRef}
         aria-live="polite"
-        className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
+        className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4"
       >
         {ticket.messages.map((message) => (
           <div key={message.id} className="space-y-1">
