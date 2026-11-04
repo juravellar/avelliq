@@ -88,6 +88,9 @@ const LoginForm = ({ canResetPassword }: { canResetPassword: boolean }) => {
     await authClient.signIn.social({
       provider: "google",
       callbackURL: "/painel",
+      // Back here with ?error=..., which the page explains, instead of Better
+      // Auth's error page, which only sent people back to the login.
+      errorCallbackURL: "/entrar",
     });
   };
 

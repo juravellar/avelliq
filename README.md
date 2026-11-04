@@ -20,7 +20,7 @@ O projeto começou em junho de 2025 como o Doutor Agenda, no bootcamp "SaaS de A
 
 ## ✨ Funcionalidades
 
-- **Autenticação** com e-mail e senha ou conta Google ([Better Auth](https://www.better-auth.com)), com recuperação de senha por e-mail. Em Minha conta dá para alterar a senha, e quem entrou pelo Google pode criar uma para também entrar com e-mail e senha.
+- **Autenticação** com e-mail e senha ou conta Google ([Better Auth](https://www.better-auth.com)), com recuperação de senha por e-mail. Em Minha conta dá para alterar a senha, e quem entrou pelo Google pode criar uma para também entrar com e-mail e senha. Se o login com Google falhar, a tela de login explica o motivo. O caso mais comum: já existe uma conta com o mesmo e-mail, criada com senha e sem o e-mail confirmado. O Better Auth não liga o Google a ela, porque quem criou a conta pode não ser o dono do endereço, e a pessoa precisa confirmar o e-mail entrando com a senha.
 - **E-mails com a cara do Avelliq:** confirmação de e-mail, redefinição de senha, aviso de protocolo, respostas do Atendimento e avisos do formulário de ajuda saem com o mesmo layout (logo, cartão branco com a faixa azul, botão e rodapé), feito com tabelas e estilos inline para funcionar no Gmail e no Outlook. Todo e-mail tem também a versão em texto puro. O layout fica em [`src/lib/email.ts`](src/lib/email.ts).
 - **Clínica:** cada usuário trabalha dentro da sua clínica, e os dados de uma clínica não são visíveis para outra.
 - **Médicos:** especialidade, valor da consulta, dias da semana e horário de atendimento.
