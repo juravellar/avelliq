@@ -183,9 +183,10 @@ Esta seção é para quem testa o Avelliq pelo navegador, sem precisar ler códi
 
    ```bash
    npx drizzle-kit push
+   npm run db:baseline
    ```
 
-   Use `push`, não `migrate`: as primeiras migrações da pasta `drizzle/` são da versão original do projeto e não rodam em sequência num banco vazio.
+   Use `push`, não `migrate`: as primeiras migrações da pasta `drizzle/` são da versão original do projeto e não rodam em sequência num banco vazio. O `db:baseline` registra as migrações como aplicadas, para as próximas entrarem pelo `scripts/migrate.mjs` (veja Banco de produção).
 
 4. Inicie o servidor de desenvolvimento e abra [http://localhost:3000](http://localhost:3000):
 
@@ -198,7 +199,8 @@ Esta seção é para quem testa o Avelliq pelo navegador, sem precisar ler códi
 | Comando | O que faz |
 |---|---|
 | `npm run dev` | Servidor de desenvolvimento |
-| `npm run build` | Build de produção. Na Vercel (produção), antes confere se o banco tem todas as colunas e índices do schema |
+| `npm run build` | Build de produção. Na Vercel (produção), antes aplica as migrações pendentes e confere se o banco tem todas as colunas e índices do schema |
+| `npm run db:baseline` | Registro inicial das migrações num banco criado com `push` (uma vez por banco, veja Banco de produção) |
 | `npm start` | Sobe o build de produção |
 | `npm run lint` | ESLint |
 | `npm test` | Testes com Vitest |
@@ -245,13 +247,25 @@ As páginas usam endereços em português: `/painel`, `/agendamentos`, `/medicos
 
 ## 🗄️ Banco de produção
 
-O banco de produção foi criado com `drizzle-kit push` e não tem o histórico do `drizzle-kit migrate`. Cada mudança de schema gera um arquivo novo em `drizzle/` (`npx drizzle-kit generate --name <nome>`), que é aplicado à mão, **antes do merge** do código que depende dele:
+Cada mudança de schema gera um arquivo novo em `drizzle/` (`npx drizzle-kit generate --name <nome>`). **No build de produção da Vercel, as migrações pendentes são aplicadas sozinhas**, antes do `next build`:
+
+1. [`scripts/migrate.mjs`](scripts/migrate.mjs) aplica as migrações que ainda não estão no banco, todas numa transação só. Se uma falhar, nenhuma é aplicada, o build para e a versão anterior continua no ar. Se a migração esperar mais de 10 segundos por uma tabela ocupada, ela desiste e o build falha, em vez de travar as consultas do site.
+2. [`scripts/check-db-schema.mjs`](scripts/check-db-schema.mjs) confere se o banco tem todas as colunas e índices do schema, e falha o build listando o que faltar.
+3. `next build`.
+
+Os deploys de preview não mexem no banco. Para rodar os dois scripts localmente contra outro banco: `RUN_MIGRATIONS=1 CHECK_DB_SCHEMA=1 npm run build`.
+
+**Toda migração precisa funcionar com a versão anterior do código**, porque durante o deploy a versão antiga continua no ar já com o banco novo. Acrescente colunas e tabelas (colunas novas opcionais ou com valor padrão). Para remover ou renomear, faça em dois deploys: primeiro o código para de usar a coluna, depois uma migração a remove (a coluna `users.support_admin` está nesse caminho).
+
+**Registro inicial (uma vez por banco).** O banco de produção foi criado com `drizzle-kit push` e não tinha o registro das migrações aplicadas, que o Drizzle guarda em `drizzle.__drizzle_migrations`. Sem ele, o build falha pedindo o registro. Num banco que já tem todas as migrações aplicadas:
 
 ```bash
-psql "$DATABASE_URL" -P pager=off -f drizzle/000X_nome.sql
+read -s DATABASE_URL && export DATABASE_URL
+npm run db:baseline
+unset DATABASE_URL
 ```
 
-Se a migração for esquecida, o deploy não chega a ir ao ar: no build de produção da Vercel, [`scripts/check-db-schema.mjs`](scripts/check-db-schema.mjs) compara as colunas e os índices do schema com os do banco e falha o build listando o que falta, e a versão anterior continua no ar. Para rodar a mesma verificação localmente: `CHECK_DB_SCHEMA=1 npm run build`.
+O comando confere antes se o banco tem o schema completo e só então marca todas as migrações de `drizzle/` como aplicadas. Num banco que já tem o registro, ele não muda nada. Banco novo, para desenvolvimento: `npx drizzle-kit push` e depois `npm run db:baseline`.
 
 Não cole a `DATABASE_URL` em chats, issues ou commits.
 

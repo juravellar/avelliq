@@ -1,6 +1,7 @@
 // Fails the production build when the database lacks a column the code
-// selects, or an index it relies on (the unique CPF index, for one). Migrations are applied by hand (see the README), and deploying
-// code before its migration takes every page that reads the new column down.
+// selects, or an index it relies on (the unique CPF index, for one). It runs
+// after scripts/migrate.mjs, as a safety net: deploying code before its
+// migration takes every page that reads the new column down.
 // A failed build keeps the previous deployment live instead.
 //
 // Runs only on Vercel production builds, or with CHECK_DB_SCHEMA=1.
