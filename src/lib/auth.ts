@@ -54,7 +54,9 @@ export const auth = betterAuth({
       // until it expires; the database has the final word. null is the same
       // "no session" answer as a request without cookies; `as never` keeps the
       // session type inferred from the branch below.
-      if (!userData) {
+      // A blocked account loses its open sessions at once, even those still
+      // in the cookie cache.
+      if (!userData || userData.blockedAt) {
         return null as never;
       }
       const { plan, subscribedPlan, simulatedPlan, planExempt } =
@@ -134,6 +136,30 @@ export const auth = betterAuth({
     },
   },
   databaseHooks: {
+    // A blocked account can't sign in. E-mail sign-in gets the reason; the
+    // Google callback can only fail the session, which the login page
+    // explains with the other possible causes.
+    session: {
+      create: {
+        before: async (session, context) => {
+          const owner = await db.query.usersTable.findFirst({
+            where: eq(usersTable.id, session.userId),
+            columns: { blockedAt: true },
+          });
+          if (!owner?.blockedAt) {
+            return;
+          }
+          if (context?.path?.startsWith("/callback")) {
+            return false;
+          }
+          throw new APIError("FORBIDDEN", {
+            code: "ACCOUNT_BLOCKED",
+            message:
+              "Esta conta está bloqueada. Fale com o suporte do Avelliq.",
+          });
+        },
+      },
+    },
     user: {
       create: {
         before: async (user, context) => {

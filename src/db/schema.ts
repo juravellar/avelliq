@@ -52,6 +52,15 @@ export const usersTable = pgTable("users", {
   // The plan a QA account tests with instead of its own, without paying.
   // Ignored for anyone else; null means its real plan.
   qaPlan: text("qa_plan"),
+  // Blocked by Avelliq's team (an owner or an admin): no sign-in, no session.
+  // The reason is a key of MODERATION_REASONS, never free text.
+  blockedAt: timestamp("blocked_at"),
+  blockedReason: text("blocked_reason"),
+  blockedBy: text("blocked_by"),
+  // An admin asked an owner to delete the account; only owners delete.
+  deletionRequestedAt: timestamp("deletion_requested_at"),
+  deletionRequestReason: text("deletion_request_reason"),
+  deletionRequestedBy: text("deletion_requested_by"),
   // A QA account's customer and subscription in the test Stripe account,
   // kept apart so test billing never mixes with real billing. A test
   // subscription only ever sets qaPlan, never plan.

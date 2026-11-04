@@ -137,3 +137,36 @@ export const deleteAccountData = async (tx: Transaction, userId: string) => {
   await tx.delete(usersTable).where(eq(usersTable.id, userId));
   return ownClinicIds.length;
 };
+
+/**
+ * What deleting the account takes with it, for the owner's confirmation:
+ * the clinics only it belongs to and what is in them.
+ */
+export const deletionPreview = async (userId: string) => {
+  const memberships = await db.query.usersToClinicsTable.findMany({
+    where: eq(usersToClinicsTable.userId, userId),
+  });
+  const clinicIds = memberships.map(({ clinicId }) => clinicId);
+  const shared = clinicIds.length
+    ? await db
+        .selectDistinct({ clinicId: usersToClinicsTable.clinicId })
+        .from(usersToClinicsTable)
+        .where(
+          and(
+            inArray(usersToClinicsTable.clinicId, clinicIds),
+            ne(usersToClinicsTable.userId, userId),
+          ),
+        )
+    : [];
+  const own = clinicIds.filter(
+    (id) => !shared.some(({ clinicId }) => clinicId === id),
+  );
+  if (!own.length) {
+    return { clinics: 0, patients: 0, appointments: 0 };
+  }
+  const [patients, appointments] = await Promise.all([
+    db.$count(patientsTable, inArray(patientsTable.clinicId, own)),
+    db.$count(appointmentsTable, inArray(appointmentsTable.clinicId, own)),
+  ]);
+  return { clinics: own.length, patients, appointments };
+};
