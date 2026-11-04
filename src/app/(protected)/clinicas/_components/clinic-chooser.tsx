@@ -98,13 +98,13 @@ export function ClinicChooser({
       {mustChoose && (
         <Card className="border-warning-border bg-warning-muted">
           <CardHeader>
-            <CardTitle className="text-base text-warning-foreground">
+            <CardTitle className="text-warning-foreground text-base">
               {firstChoice
                 ? "Escolha quais clínicas continuam ativas"
                 : "Clínicas ativas no seu plano"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-warning-foreground">
+          <CardContent className="text-warning-foreground space-y-2 text-sm">
             <p>
               Você tem {clinics.length} clínicas e seu plano permite {limit}. As
               outras ficam só leitura: você continua vendo os dados, mas não

@@ -59,7 +59,9 @@ const StatsCards = ({
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
-              <div className="text-xl font-bold break-words sm:text-2xl">{stat.value}</div>
+              <div className="text-xl font-bold break-words sm:text-2xl">
+                {stat.value}
+              </div>
             </CardContent>
           </Card>
         );

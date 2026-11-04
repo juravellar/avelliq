@@ -11,7 +11,7 @@ import {
   isSupportOwner,
 } from "@/lib/support/admin";
 import { refreshInboxSoon } from "@/lib/support/inbox-refresh";
-import { countAwaitingTeam, countUnreadTickets } from "@/lib/support/tickets";
+import { countNewForTeam, countUnreadTickets } from "@/lib/support/tickets";
 
 import { AccountStatusBanner } from "./_components/account-status-banner";
 import { AppBreadcrumb } from "./_components/app-breadcrumb";
@@ -44,7 +44,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
     refreshInboxSoon();
   }
   const awaiting = isTeam
-    ? await countAwaitingTeam({ seesAll: isSupportOwner(session.user) }).catch(
+    ? await countNewForTeam({ seesAll: isSupportOwner(session.user) }).catch(
         () => 0,
       )
     : 0;

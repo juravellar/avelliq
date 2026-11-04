@@ -378,6 +378,9 @@ export const supportTicketsTable = pgTable(
     // When the customer last opened the ticket in the help panel: team
     // answers after it are new to them.
     customerSeenAt: timestamp("customer_seen_at"),
+    // When someone on the team who answers last opened the ticket: customer
+    // messages after it are new to the team (the header alert).
+    teamSeenAt: timestamp("team_seen_at"),
     lastMessageAt: timestamp("last_message_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

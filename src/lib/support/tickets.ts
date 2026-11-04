@@ -7,6 +7,7 @@ import {
   desc,
   eq,
   exists,
+  gt,
   ilike,
   inArray,
   isNull,
@@ -679,8 +680,9 @@ export const addCustomerMessage = async (
   return { error: null };
 };
 
-// Tickets whose customer wrote last, still open: the team's alert.
-export const countAwaitingTeam = async ({ seesAll }: { seesAll: boolean }) => {
+// Open tickets with a customer message nobody on the team who answers has
+// opened yet (isNewForTeam): the header alert.
+export const countNewForTeam = async ({ seesAll }: { seesAll: boolean }) => {
   const [{ total }] = await db
     .select({ total: count() })
     .from(supportTicketsTable)
@@ -689,7 +691,17 @@ export const countAwaitingTeam = async ({ seesAll }: { seesAll: boolean }) => {
         seesAll ? undefined : supportVisibility(),
         eq(supportTicketsTable.awaitingTeam, true),
         inArray(supportTicketsTable.status, ["received", "in_review"]),
+        or(
+          isNull(supportTicketsTable.teamSeenAt),
+          gt(supportTicketsTable.lastMessageAt, supportTicketsTable.teamSeenAt),
+        ),
       ),
     );
   return total;
 };
+
+export const markSeenByTeam = (id: string) =>
+  db
+    .update(supportTicketsTable)
+    .set({ teamSeenAt: new Date() })
+    .where(eq(supportTicketsTable.id, id));

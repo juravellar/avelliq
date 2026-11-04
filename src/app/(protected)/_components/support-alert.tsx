@@ -15,9 +15,10 @@ import { getSupportAlert } from "@/actions/support-alert";
 
 const POLL_MS = 60 * 1000;
 
-const AwaitingContext = createContext(0);
+const AwaitingContext = createContext({ awaiting: 0, refresh: () => {} });
 
-// Tickets waiting for the team, for the header alert and the sidebar badge.
+// Tickets with a customer message the team hasn't opened, for the header
+// alert and the sidebar badge.
 // Polled every minute while the tab is visible, so a new message shows up
 // without reloading the page.
 export function SupportAlertProvider({
@@ -55,13 +56,23 @@ export function SupportAlertProvider({
   }, [enabled, execute]);
 
   return (
-    <AwaitingContext.Provider value={enabled ? awaiting : 0}>
+    <AwaitingContext.Provider
+      value={{ awaiting: enabled ? awaiting : 0, refresh: execute }}
+    >
       {children}
     </AwaitingContext.Provider>
   );
 }
 
-export const useAwaitingTickets = () => useContext(AwaitingContext);
+export const useAwaitingTickets = () => useContext(AwaitingContext).awaiting;
+
+// On a ticket's page: opening it may have cleared a new message, and the
+// layout (kept across navigations) still holds the old count.
+export function RefreshSupportAlert() {
+  const { refresh } = useContext(AwaitingContext);
+  useEffect(() => refresh(), [refresh]);
+  return null;
+}
 
 // Always in the header, so it shows with the sidebar closed and on phones.
 export function SupportAlert() {
@@ -71,8 +82,8 @@ export function SupportAlert() {
   }
   const label =
     awaiting === 1
-      ? "1 atendimento aguardando a equipe"
-      : `${awaiting} atendimentos aguardando a equipe`;
+      ? "1 mensagem nova no Atendimento"
+      : `${awaiting} atendimentos com mensagem nova`;
   return (
     <Link
       href="/atendimento?status=awaiting"

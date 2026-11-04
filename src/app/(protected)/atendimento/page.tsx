@@ -26,6 +26,7 @@ import {
 } from "@/lib/support/tickets";
 import {
   isFinalStatus,
+  isNewForTeam,
   protocolOf,
   STATUS_NAMES,
   SUPPORT_STATUSES,
@@ -190,8 +191,15 @@ const InboxPage = async ({ searchParams }: InboxPageProps) => {
                         {protocolOf(ticket.number)}
                       </span>
                       <StatusBadge status={ticket.status} />
-                      {ticket.awaitingTeam && !isFinalStatus(ticket.status) && (
+                      {isNewForTeam(ticket) ? (
                         <Badge className="shrink-0">Nova mensagem</Badge>
+                      ) : (
+                        ticket.awaitingTeam &&
+                        !isFinalStatus(ticket.status) && (
+                          <Badge variant="outline" className="shrink-0">
+                            Aguardando resposta
+                          </Badge>
+                        )
                       )}
                       {ticket.source === "form" && (
                         <Badge variant="secondary" className="shrink-0 gap-1">

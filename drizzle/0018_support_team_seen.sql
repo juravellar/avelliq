@@ -1,0 +1,1 @@
+ALTER TABLE "support_tickets" ADD COLUMN "team_seen_at" timestamp;
