@@ -518,6 +518,23 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     });
   });
 
+  it("counts the open tickets waiting for the team", async () => {
+    const { db, schema, importReceivedEmail, countAwaitingTeam } = await load();
+    const { eq } = await import("drizzle-orm");
+    const before = await countAwaitingTeam({ seesAll: true });
+    const opened = (await importReceivedEmail(
+      received({ from: customer }),
+      NOW,
+    ))!.ticket;
+    expect(await countAwaitingTeam({ seesAll: true })).toBe(before + 1);
+
+    await db
+      .update(schema.supportTicketsTable)
+      .set({ status: "concluded" })
+      .where(eq(schema.supportTicketsTable.id, opened.id));
+    expect(await countAwaitingTeam({ seesAll: true })).toBe(before);
+  });
+
   it("exports and deletes a customer's tickets", async () => {
     const { db, importReceivedEmail, ticketsOf, deleteTicketsOf } =
       await load();
