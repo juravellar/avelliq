@@ -678,3 +678,18 @@ export const addCustomerMessage = async (
   });
   return { error: null };
 };
+
+// Tickets whose customer wrote last, still open: the team's alert.
+export const countAwaitingTeam = async ({ seesAll }: { seesAll: boolean }) => {
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(supportTicketsTable)
+    .where(
+      and(
+        seesAll ? undefined : supportVisibility(),
+        eq(supportTicketsTable.awaitingTeam, true),
+        inArray(supportTicketsTable.status, ["received", "in_review"]),
+      ),
+    );
+  return total;
+};

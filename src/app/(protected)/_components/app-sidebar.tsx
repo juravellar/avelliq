@@ -51,6 +51,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -61,6 +62,7 @@ import { authClient } from "../../../lib/auth-client";
 import { BlockedCreateDialog } from "./blocked-create-dialog";
 import { NewClinicDialog } from "./new-clinic-dialog";
 import { useSessionUser } from "./session-provider";
+import { useAwaitingTickets } from "./support-alert";
 
 const items = [
   {
@@ -107,6 +109,7 @@ export function AppSidebar({
 }) {
   const router = useRouter();
   const user = useSessionUser();
+  const awaiting = useAwaitingTickets();
   const clinics = user.clinics;
   const activeClinicId = user.clinic?.id;
   const clinicLimit = user.clinicLimit;
@@ -215,7 +218,15 @@ export function AppSidebar({
             className="hover:bg-primary/5 hover:text-primary -mx-2 -my-1 mb-0.5 flex cursor-pointer items-center justify-between rounded-md px-2 py-1"
             onClick={toggleOthersSection}
           >
-            <span>Outros</span>
+            <span className="flex items-center gap-1.5">
+              Outros
+              {awaiting > 0 && !isOthersExpanded && (
+                <span
+                  className="bg-destructive h-2 w-2 rounded-full"
+                  aria-label="Mensagens novas no Atendimento"
+                />
+              )}
+            </span>
             {isOthersExpanded ? (
               <ChevronDown className="h-4 w-4" />
             ) : (
@@ -255,6 +266,11 @@ export function AppSidebar({
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
+                    {item.url === "/atendimento" && awaiting > 0 && (
+                      <SidebarMenuBadge className="bg-destructive rounded-full text-white">
+                        {awaiting}
+                      </SidebarMenuBadge>
+                    )}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
