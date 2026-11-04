@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { brandStylesheet, clinicLogoUrl } from "@/lib/branding";
 import { getServerSession } from "@/lib/server-session";
 import { canSeeAccounts, canSeeSupportInbox } from "@/lib/support/admin";
+import { countUnreadTickets } from "@/lib/support/tickets";
 
 import { AccountStatusBanner } from "./_components/account-status-banner";
 import { AppBreadcrumb } from "./_components/app-breadcrumb";
@@ -22,6 +23,11 @@ export default async function Layout({ children }: { children: ReactNode }) {
     redirect("/entrar");
   }
   const clinicId = session.user.clinic?.id;
+  // Only with a confirmed e-mail: tickets are found by address. A failure
+  // only hides the badge.
+  const unreadTickets = session.user.emailVerified
+    ? await countUnreadTickets(session.user.email).catch(() => 0)
+    : 0;
   // The session already read the active clinic's branding; the sidebar loads
   // the logo itself from its own cacheable URL.
   const { branding } = session.user;
@@ -50,6 +56,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
           <SupportWidget
             user={{ name: session.user.name, email: session.user.email }}
             supportEmail={process.env.SUPPORT_EMAIL ?? null}
+            unreadTickets={unreadTickets}
           />
         </main>
       </SidebarProvider>

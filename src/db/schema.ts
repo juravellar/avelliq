@@ -366,6 +366,9 @@ export const supportTicketsTable = pgTable(
     ),
     // The customer wrote last and the team hasn't answered yet.
     awaitingTeam: boolean("awaiting_team").notNull().default(true),
+    // When the customer last opened the ticket in the help panel: team
+    // answers after it are new to them.
+    customerSeenAt: timestamp("customer_seen_at"),
     lastMessageAt: timestamp("last_message_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

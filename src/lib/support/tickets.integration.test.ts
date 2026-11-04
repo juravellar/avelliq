@@ -441,6 +441,83 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(concluded.total).toBe(0);
   });
 
+  it("shows the customer their tickets and flags new team answers", async () => {
+    const {
+      db,
+      schema,
+      importReceivedEmail,
+      customerTickets,
+      customerTicket,
+      countUnreadTickets,
+      markSeenByCustomer,
+    } = await load();
+    const opened = (await importReceivedEmail(
+      received({ from: customer }),
+      NOW,
+    ))!.ticket;
+    expect(await countUnreadTickets(customer)).toBe(0);
+
+    await db.insert(schema.supportMessagesTable).values({
+      ticketId: opened.id,
+      author: "team",
+      body: "Veja em Médicos.",
+      statusChange: "in_review",
+    });
+
+    expect(await countUnreadTickets(customer.toUpperCase())).toBe(1);
+    const [listed] = await customerTickets(customer);
+    expect(listed).toMatchObject({ id: opened.id, unread: true });
+
+    const ticket = await customerTicket(opened.id, customer);
+    // The protocol e-mail note is the team's, not the customer's.
+    expect(ticket!.messages.map(({ fromTeam }) => fromTeam)).toEqual([
+      false,
+      true,
+    ]);
+    expect(ticket!.messages[1]).not.toHaveProperty("userId");
+    expect(await customerTicket(opened.id, "outra@x.com")).toBeNull();
+
+    await markSeenByCustomer(opened.id);
+    expect(await countUnreadTickets(customer)).toBe(0);
+  });
+
+  it("adds the customer's answer from the help panel, but not to a finished ticket", async () => {
+    const { db, schema, importReceivedEmail, addCustomerMessage, getTicket } =
+      await load();
+    const { eq } = await import("drizzle-orm");
+    const opened = (await importReceivedEmail(
+      received({ from: customer }),
+      NOW,
+    ))!.ticket;
+    await db
+      .update(schema.supportTicketsTable)
+      .set({ awaitingTeam: false })
+      .where(eq(schema.supportTicketsTable.id, opened.id));
+
+    expect(
+      (await addCustomerMessage(opened.id, "outra@x.com", "Oi")).error,
+    ).toBe("not-found");
+    expect(
+      (await addCustomerMessage(opened.id, customer, "Ainda não deu certo."))
+        .error,
+    ).toBeNull();
+    const stored = (await getTicket(opened.id))!;
+    expect(stored.awaitingTeam).toBe(true);
+    expect(stored.messages.at(-1)).toMatchObject({
+      author: "customer",
+      body: "Ainda não deu certo.",
+    });
+
+    await db
+      .update(schema.supportTicketsTable)
+      .set({ status: "concluded" })
+      .where(eq(schema.supportTicketsTable.id, opened.id));
+    expect(await addCustomerMessage(opened.id, customer, "E agora?")).toEqual({
+      error: "final",
+      protocol: expect.stringMatching(/^AV-/),
+    });
+  });
+
   it("exports and deletes a customer's tickets", async () => {
     const { db, importReceivedEmail, ticketsOf, deleteTicketsOf } =
       await load();
