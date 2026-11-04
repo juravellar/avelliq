@@ -162,6 +162,11 @@ export default function PrivacyPolicyPage() {
           Registro de auditoria: até 5 anos, contendo apenas identificadores.
         </li>
         <li>
+          Atendimentos do suporte (mensagens trocadas com a equipe e o
+          protocolo): até 2 anos depois da última mensagem. Ao excluir a conta,
+          os atendimentos ligados ao seu e-mail são apagados junto.
+        </li>
+        <li>
           Cópias de segurança do banco de dados: substituídas automaticamente
           dentro do período de retenção do provedor.
         </li>
@@ -205,10 +210,13 @@ export default function PrivacyPolicyPage() {
       </p>
       <p>
         Mensagens enviadas pelo botão de ajuda (opção &quot;Falar com a
-        equipe&quot;) chegam por e-mail à nossa equipe, enviadas pelo Resend,
-        com nome, e-mail, assunto e mensagem e, se você estiver logado, a
-        clínica e o plano. Elas servem só para responder ao seu pedido. Não
-        inclua dados de pacientes nessas mensagens.
+        equipe&quot;) ou por e-mail para o suporte viram um atendimento, com um
+        número de protocolo, guardado com nome, e-mail, assunto e o histórico da
+        conversa e, se você estiver logado, a clínica e o plano. Os e-mails são
+        enviados e recebidos pelo Resend. Os atendimentos servem só para
+        responder ao seu pedido e ficam guardados pelo prazo da seção 5. Não
+        inclua dados de pacientes nessas mensagens nem envie anexos: eles não
+        são aceitos.
       </p>
 
       <h2>9. Alterações</h2>

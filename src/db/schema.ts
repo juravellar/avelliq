@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   date,
   index,
@@ -320,4 +321,118 @@ export const auditLogsTable = pgTable(
   (table) => [
     index("audit_logs_clinic_created_idx").on(table.clinicId, table.createdAt),
   ],
+);
+
+// A support ticket's progress, as the Atendimento shows it: Recebido, Em
+// análise, Concluído, Arquivado. The last two are final.
+export const supportStatusEnum = pgEnum("support_status", [
+  "received",
+  "in_review",
+  "concluded",
+  "archived",
+]);
+
+export const supportSourceEnum = pgEnum("support_source", ["email", "form"]);
+
+export const supportAuthorEnum = pgEnum("support_author", [
+  "customer",
+  "team",
+  "system",
+]);
+
+// One conversation with a customer, under a protocol number (AV-000123) the
+// customer is given. Deleted 2 years after the last message (data-retention
+// cron) or with the customer's account.
+export const supportTicketsTable = pgTable(
+  "support_tickets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    number: integer("number").generatedAlwaysAsIdentity().notNull().unique(),
+    subject: text("subject").notNull(),
+    customerEmail: text("customer_email").notNull(),
+    customerName: text("customer_name"),
+    // The address it was sent to. Only the support addresses are shown to
+    // the whole team; mail to the domain's other addresses only to owners.
+    inbox: text("inbox").notNull(),
+    source: supportSourceEnum("source").notNull(),
+    status: supportStatusEnum("status").notNull().default("received"),
+    // Account details sent by the help form (account id, plan, clinic,
+    // page), for the team only: they never go back to the customer.
+    context: text("context"),
+    // A reply to a finalized ticket opens a new one that points back to it.
+    previousTicketId: uuid("previous_ticket_id").references(
+      (): AnyPgColumn => supportTicketsTable.id,
+      { onDelete: "set null" },
+    ),
+    // The customer wrote last and the team hasn't answered yet.
+    awaitingTeam: boolean("awaiting_team").notNull().default(true),
+    lastMessageAt: timestamp("last_message_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("support_tickets_last_message_idx").on(table.lastMessageAt),
+    index("support_tickets_customer_email_idx").on(table.customerEmail),
+  ],
+);
+
+export const supportMessagesTable = pgTable(
+  "support_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ticketId: uuid("ticket_id")
+      .notNull()
+      .references(() => supportTicketsTable.id, { onDelete: "cascade" }),
+    author: supportAuthorEnum("author").notNull(),
+    // Who on the team wrote it or changed the status.
+    userId: text("user_id").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    // Plain text; null for a status change without a message.
+    body: text("body"),
+    statusChange: supportStatusEnum("status_change"),
+    // The received e-mail in Resend: an e-mail already stored is skipped on
+    // the next import.
+    resendEmailId: text("resend_email_id").unique(),
+    // The e-mail's Message-ID, to place replies whose subject lost the
+    // protocol.
+    messageId: text("message_id"),
+    // Attachments aren't accepted; the team is told one was sent.
+    hadAttachments: boolean("had_attachments").notNull().default(false),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("support_messages_ticket_created_idx").on(
+      table.ticketId,
+      table.createdAt,
+    ),
+    index("support_messages_message_id_idx").on(table.messageId),
+  ],
+);
+
+export const supportTicketsTableRelations = relations(
+  supportTicketsTable,
+  ({ many, one }) => ({
+    messages: many(supportMessagesTable),
+    previousTicket: one(supportTicketsTable, {
+      fields: [supportTicketsTable.previousTicketId],
+      references: [supportTicketsTable.id],
+    }),
+  }),
+);
+
+export const supportMessagesTableRelations = relations(
+  supportMessagesTable,
+  ({ one }) => ({
+    ticket: one(supportTicketsTable, {
+      fields: [supportMessagesTable.ticketId],
+      references: [supportTicketsTable.id],
+    }),
+    user: one(usersTable, {
+      fields: [supportMessagesTable.userId],
+      references: [usersTable.id],
+    }),
+  }),
 );

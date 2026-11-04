@@ -166,19 +166,71 @@ export const resetPasswordEmail = (url: string) => ({
   }),
 });
 
-// An answer from the support inbox: the text typed, then the original quoted.
-export const supportReplyEmail = (answer: string, quoted: string) => {
-  const text = `${answer.trim()}${quoted}`;
+const protocolBox = (protocol: string) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background:#F4F5FA;border-radius:8px">
+<tr><td style="padding:16px 18px;font-size:13px;line-height:20px;color:${MUTED}">Protocolo<br><strong style="font-size:20px;line-height:30px;letter-spacing:0.5px;color:${INK}">${escapeHtml(protocol)}</strong></td></tr>
+</table>`;
+
+const whereToWrite = () =>
+  process.env.SUPPORT_EMAIL
+    ? `pelo botão Ajuda do Avelliq ou escrevendo para ${process.env.SUPPORT_EMAIL}`
+    : "pelo botão Ajuda do Avelliq";
+
+// A ticket that is over. Disagreeing means a new ticket that quotes this one.
+const finalNotice = (protocol: string, statusName: string) =>
+  `Este atendimento foi ${statusName}. Guarde o protocolo ${protocol}. Se não concordar com a resposta, abra um novo atendimento ${whereToWrite()} e informe este protocolo.`;
+
+// Sent when a ticket is opened, so the customer has its protocol.
+export const ticketReceivedEmail = (protocol: string) => {
+  const kept = `Seu protocolo é ${protocol}. Guarde este número: ele identifica o seu atendimento.`;
+  const more =
+    "Para acrescentar informações, é só responder este e-mail. Não aceitamos anexos.";
   return {
-    text,
+    text: `Recebemos sua mensagem e já abrimos um atendimento.\n\n${kept}\n\n${more}\n\nEste é um aviso automático.`,
+    html: emailLayout({
+      preview: `Seu protocolo é ${protocol}.`,
+      heading: "Recebemos sua mensagem",
+      body: `${paragraph("Já abrimos um atendimento e nossa equipe vai responder por aqui.")}${protocolBox(protocol)}${paragraph("Guarde este número: ele identifica o seu atendimento.")}${paragraph(escapeHtml(more))}`,
+      footnote: "Este é um aviso automático.",
+    }),
+  };
+};
+
+// The team's answer to a ticket: the text typed, the protocol and, when the
+// ticket is over, how to disagree; then the customer's message quoted.
+export const supportReplyEmail = ({
+  answer,
+  quoted,
+  protocol,
+  finalStatusName,
+}: {
+  answer: string;
+  quoted: string;
+  protocol: string;
+  // "concluído" or "arquivado" when this answer ends the ticket.
+  finalStatusName?: string;
+}) => {
+  const notice = finalStatusName
+    ? finalNotice(protocol, finalStatusName)
+    : null;
+  return {
+    text: `${answer.trim()}\n\nProtocolo: ${protocol}${notice ? `\n\n${notice}` : ""}${quoted}`,
     html: emailLayout({
       preview: answer.trim().replace(/\s+/g, " ").slice(0, 100),
       body: `<p style="margin:0;white-space:pre-wrap">${escapeHtml(answer.trim())}</p>${
+        notice
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background:#F4F5FA;border-left:3px solid ${BRAND};border-radius:8px">
+<tr><td style="padding:14px 16px;font-size:13px;line-height:21px;color:${INK}">${escapeHtml(notice)}</td></tr>
+</table>`
+          : ""
+      }${
         quoted
           ? `<blockquote style="margin:24px 0 0;padding:4px 0 4px 14px;border-left:3px solid ${BORDER};font-size:13px;line-height:20px;color:${MUTED};white-space:pre-wrap">${escapeHtml(quoted.trim())}</blockquote>`
           : ""
       }`,
-      footnote: "Para continuar a conversa, é só responder este email.",
+      footnote: notice
+        ? `Protocolo ${escapeHtml(protocol)}.`
+        : `Protocolo ${escapeHtml(protocol)}. Para continuar a conversa, é só responder este email.`,
     }),
   };
 };
@@ -193,28 +245,41 @@ export interface SupportRequestEmail {
   page: string | null;
 }
 
-// A message from the "Falar com a equipe" form. Replying answers the person.
-export const supportRequestEmail = (request: SupportRequestEmail) => {
-  const summary = request.message.replace(/\s+/g, " ").slice(0, 60);
-  const details = [
-    `Nome: ${request.name}`,
-    `E-mail: ${request.email}`,
+// The help form's account details, for the team only.
+export const supportRequestContext = (request: SupportRequestEmail) =>
+  [
     request.account
       ? `Conta: ${request.account.userId} · Plano: ${request.account.plan} · Clínica: ${request.account.clinic ?? "nenhuma"}`
       : "Conta: não estava logado",
     request.page ? `Página: ${request.page}` : null,
-  ].filter(Boolean) as string[];
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+// The team's notice of a help-form ticket. The ticket is already in the
+// Atendimento; answering there keeps the answer in its history.
+export const supportRequestEmail = (
+  request: SupportRequestEmail,
+  protocol: string,
+) => {
+  const summary = request.message.replace(/\s+/g, " ").slice(0, 60);
+  const details = [
+    `Nome: ${request.name}`,
+    `E-mail: ${request.email}`,
+    supportRequestContext(request),
+  ].join("\n");
   return {
-    subject: `[Avelliq · ${request.topic}] ${summary}`,
-    text: `${details.join("\n")}\n\n${request.message}`,
+    subject: `[Avelliq · Protocolo ${protocol}] ${request.topic}: ${summary}`,
+    text: `${details}\n\n${request.message}`,
     html: emailLayout({
       preview: summary,
       heading: `Nova mensagem: ${request.topic}`,
-      body: `<p style="margin:0;white-space:pre-wrap">${escapeHtml(request.message)}</p>
+      body: `${protocolBox(protocol)}<p style="margin:0;white-space:pre-wrap">${escapeHtml(request.message)}</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background:#F4F5FA;border-radius:8px">
-<tr><td style="padding:14px 16px;font-size:13px;line-height:21px;color:${MUTED}">${details.map(escapeHtml).join("<br>")}</td></tr>
+<tr><td style="padding:14px 16px;font-size:13px;line-height:21px;color:${MUTED};white-space:pre-wrap">${escapeHtml(details)}</td></tr>
 </table>`,
-      footnote: "Responder este email responde a pessoa diretamente.",
+      footnote:
+        "Responda pelo Atendimento do Avelliq: assim a resposta fica no histórico do protocolo.",
     }),
   };
 };

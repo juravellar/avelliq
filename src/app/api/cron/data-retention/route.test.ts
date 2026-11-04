@@ -10,7 +10,11 @@ vi.mock("@/db", () => ({
   },
 }));
 
-import { auditLogsTable, sessionsTable } from "@/db/schema";
+import {
+  auditLogsTable,
+  sessionsTable,
+  supportTicketsTable,
+} from "@/db/schema";
 
 import { GET } from "./route";
 
@@ -28,12 +32,14 @@ describe("data-retention cron", () => {
         ? [{ id: "a" }, { id: "b" }]
         : table === auditLogsTable
           ? []
-          : [{ id: "c" }],
+          : table === supportTicketsTable
+            ? [{ id: "t" }]
+            : [{ id: "c" }],
     );
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("deletes expired sessions, verifications and old audit logs", async () => {
+  it("deletes expired sessions, verifications, old audit logs and tickets", async () => {
     const response = await GET(request("Bearer s3cret"));
 
     expect(response.status).toBe(200);
@@ -41,6 +47,7 @@ describe("data-retention cron", () => {
       deletedSessions: 2,
       deletedVerifications: 1,
       deletedAuditLogs: 0,
+      deletedSupportTickets: 1,
     });
   });
 

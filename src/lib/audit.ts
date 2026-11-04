@@ -20,7 +20,8 @@ export type AuditAction =
   | "staff.qa-granted"
   | "staff.admin-granted"
   | "staff.removed"
-  | "support.replied";
+  | "support.replied"
+  | "support.status-changed";
 
 export interface AuditEntry {
   userId: string | null;
