@@ -200,6 +200,8 @@ Esta seção é para quem testa o Avelliq pelo navegador, sem precisar ler códi
 
 ### Scripts
 
+O CI (`.github/workflows/ci.yml`) roda `tsc`, `npm run lint` e `npm test` em todo PR e em todo push na `main`.
+
 | Comando | O que faz |
 |---|---|
 | `npm run dev` | Servidor de desenvolvimento |
@@ -257,9 +259,11 @@ Cada mudança de schema gera um arquivo novo em `drizzle/` (`npx drizzle-kit gen
 2. [`scripts/check-db-schema.mjs`](scripts/check-db-schema.mjs) confere se o banco tem todas as colunas e índices do schema, e falha o build listando o que faltar.
 3. `next build`.
 
+Dois builds de produção ao mesmo tempo não se atropelam: o script pega um lock do Postgres (`pg_advisory_lock`) e o segundo espera o primeiro terminar.
+
 Os deploys de preview não mexem no banco. Para rodar os dois scripts localmente contra outro banco: `RUN_MIGRATIONS=1 CHECK_DB_SCHEMA=1 npm run build`.
 
-**Toda migração precisa funcionar com a versão anterior do código**, porque durante o deploy a versão antiga continua no ar já com o banco novo. Acrescente colunas e tabelas (colunas novas opcionais ou com valor padrão). Para remover ou renomear, faça em dois deploys: primeiro o código para de usar a coluna, depois uma migração a remove (a coluna `users.support_admin` está nesse caminho).
+**Toda migração precisa funcionar com a versão anterior do código**, porque durante o deploy a versão antiga continua no ar já com o banco novo. Acrescente colunas e tabelas (colunas novas opcionais ou com valor padrão). Para remover ou renomear, faça em dois deploys: primeiro o código para de usar a coluna, depois uma migração a remove (a coluna `users.support_admin` está nesse caminho). Não há migrações de volta (down): desfazer uma mudança é uma migração nova que corrige para a frente.
 
 **Registro inicial (uma vez por banco).** O banco de produção foi criado com `drizzle-kit push` e não tinha o registro das migrações aplicadas, que o Drizzle guarda em `drizzle.__drizzle_migrations`. Sem ele, o build falha pedindo o registro. Num banco que já tem todas as migrações aplicadas:
 

@@ -1,10 +1,12 @@
 "use client";
 
-import { format, isValid, parse } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import "dayjs/locale/pt-br";
+
+import dayjs from "dayjs";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { createParser, useQueryStates } from "nuqs";
 import { DateRange } from "react-day-picker";
+import { ptBR } from "react-day-picker/locale";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -15,19 +17,25 @@ import {
 } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const DATE = "yyyy-MM-dd";
+const DATE = "YYYY-MM-DD";
 
-const parseDay = (value: string) => parse(value, DATE, new Date());
+// Strict like date-fns' parse: dayjs rolls "2026-02-31" over to March, so
+// only a value that formats back to itself is a real day.
+const parseDay = (value: string) => dayjs(value, DATE).toDate();
+const isValid = (date: Date) => !Number.isNaN(date.getTime());
+const parseStrictDay = (value: string) => {
+  const date = parseDay(value);
+  return isValid(date) && dayjs(date).format(DATE) === value ? date : null;
+};
 
 // Dates in the URL are calendar days. nuqs' parseAsIsoDate reads them as UTC
 // midnight, which in Brazil is the evening before, so the picker showed the
 // previous day.
 const parseAsDay = createParser({
   parse: (value) => {
-    const date = parseDay(value);
-    return isValid(date) ? date : null;
+    return parseStrictDay(value);
   },
-  serialize: (date) => format(date, DATE),
+  serialize: (date) => dayjs(date).format(DATE),
   eq: (a, b) => a.getTime() === b.getTime(),
 });
 
@@ -60,8 +68,8 @@ export function DatePicker({ from, to }: { from: string; to: string }) {
             className="justify-start text-left font-normal"
           >
             <CalendarIcon className="text-primary h-4 w-4" />
-            {format(range.from, "LLL dd, y", { locale: ptBR })} -{" "}
-            {format(range.to, "LLL dd, y", { locale: ptBR })}
+            {dayjs(range.from).locale("pt-br").format("MMM DD, YYYY")} -{" "}
+            {dayjs(range.to).locale("pt-br").format("MMM DD, YYYY")}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

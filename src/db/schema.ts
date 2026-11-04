@@ -56,11 +56,17 @@ export const usersTable = pgTable("users", {
   // The reason is a key of MODERATION_REASONS, never free text.
   blockedAt: timestamp("blocked_at"),
   blockedReason: text("blocked_reason"),
-  blockedBy: text("blocked_by"),
+  // The moderator's account; cleared if that account is deleted.
+  blockedBy: text("blocked_by").references((): AnyPgColumn => usersTable.id, {
+    onDelete: "set null",
+  }),
   // An admin asked an owner to delete the account; only owners delete.
   deletionRequestedAt: timestamp("deletion_requested_at"),
   deletionRequestReason: text("deletion_request_reason"),
-  deletionRequestedBy: text("deletion_requested_by"),
+  deletionRequestedBy: text("deletion_requested_by").references(
+    (): AnyPgColumn => usersTable.id,
+    { onDelete: "set null" },
+  ),
   // A QA account's customer and subscription in the test Stripe account,
   // kept apart so test billing never mixes with real billing. A test
   // subscription only ever sets qaPlan, never plan.

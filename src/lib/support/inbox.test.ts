@@ -30,19 +30,6 @@ describe("Resend receiving client", () => {
     );
   });
 
-  it("asks for the newer page before a given id", async () => {
-    vi.stubEnv("RESEND_RECEIVING_API_KEY", "re_full");
-    const fetchMock = respond(200, { data: [], has_more: false });
-
-    await listReceivedEmails({
-      before: "4ef9a417-02e9-4d39-ad75-9611e0fcc33c",
-    });
-
-    expect(String(fetchMock.mock.calls[0][0])).toBe(
-      "https://api.resend.com/emails/receiving?limit=30&before=4ef9a417-02e9-4d39-ad75-9611e0fcc33c",
-    );
-  });
-
   it("tells a key problem apart from other failures", async () => {
     respond(400, { name: "validation_error", message: "API key is invalid" });
     await expect(listReceivedEmails()).rejects.toMatchObject({

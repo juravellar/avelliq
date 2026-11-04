@@ -4,7 +4,6 @@ import {
   addressOf,
   customerAddress,
   htmlToText,
-  isForSupport,
   isHelpFormMessage,
   isOwnAddress,
   isSupportAddress,
@@ -87,14 +86,6 @@ describe("inbox helpers", () => {
 
   it("tells mail for the support addresses from the rest of the domain", () => {
     const support = ["Avelliq <sac@mail.avelliq.com.br>", undefined];
-    expect(isForSupport(email, support)).toBe(true);
-    expect(
-      isForSupport({ ...email, to: ["SAC@mail.avelliq.com.br"] }, support),
-    ).toBe(true);
-    expect(
-      isForSupport({ ...email, to: ["admin@mail.avelliq.com.br"] }, support),
-    ).toBe(false);
-    expect(isForSupport(email, [undefined, ""])).toBe(false);
     expect(isSupportAddress("Sac <SAC@mail.avelliq.com.br>", support)).toBe(
       true,
     );

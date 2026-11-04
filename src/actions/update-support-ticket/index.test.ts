@@ -155,6 +155,19 @@ describe("updateSupportTicket", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
+  it("rejects a one-character message", async () => {
+    const result = await updateSupportTicket({
+      ticketId: TICKET_ID,
+      status: "in_review",
+      message: "a",
+    });
+
+    expect(result?.validationErrors?.message?._errors).toContain(
+      "Escreva a mensagem.",
+    );
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
   it("changes only the status, without e-mailing", async () => {
     const result = await updateSupportTicket({
       ticketId: TICKET_ID,

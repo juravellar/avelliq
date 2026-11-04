@@ -2,6 +2,7 @@ import { ArrowLeft, Mail, Paperclip, Settings2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { StatusBadge, StatusSteps } from "@/components/support/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageContainer, PageContent } from "@/components/ui/page-container";
@@ -29,7 +30,6 @@ import {
 } from "@/lib/support/tickets-helpers";
 
 import { RefreshSupportAlert } from "../../_components/support-alert";
-import { StatusBadge, StatusSteps } from "../_components/status-badge";
 import { TicketUpdateForm } from "../_components/ticket-update-form";
 
 type Ticket = NonNullable<Awaited<ReturnType<typeof getTicket>>>;

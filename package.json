@@ -2,6 +2,7 @@
   "name": "avelliq",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.19.0",
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/migrate.mjs && node scripts/check-db-schema.mjs && next build",
@@ -30,7 +31,6 @@
     "better-auth": "^1.7.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "date-fns": "^3.6.0",
     "dayjs": "^1.11.13",
     "dotenv": "^16.5.0",
     "drizzle-orm": "^0.45.4",
@@ -49,7 +49,7 @@
     "sonner": "^2.0.3",
     "stripe": "^18.2.0",
     "tailwind-merge": "^3.3.0",
-    "zod": "^3.25.30"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

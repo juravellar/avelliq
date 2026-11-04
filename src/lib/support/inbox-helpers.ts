@@ -74,11 +74,6 @@ export const isSupportAddress = (
   support: (string | undefined)[] = supportAddresses(),
 ) => support.some((value) => !!value?.trim() && sameAddress(address, value));
 
-export const isForSupport = (
-  email: ReceivedEmailSummary,
-  support: (string | undefined)[] = supportAddresses(),
-) => email.to.some((to) => isSupportAddress(to, support));
-
 // An HTML-only e-mail as plain text, for quoting: line breaks where blocks
 // end, tags dropped, the common entities decoded.
 export const htmlToText = (html: string) =>

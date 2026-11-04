@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# the project uses npm; bun writes this lockfile if someone runs it
+bun.lock

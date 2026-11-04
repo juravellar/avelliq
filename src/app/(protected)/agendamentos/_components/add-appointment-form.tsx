@@ -1,13 +1,14 @@
 "use client";
 
+import "dayjs/locale/pt-br";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import dayjs from "dayjs";
 import { CalendarIcon } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useState } from "react";
+import { ptBR } from "react-day-picker/locale";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -375,7 +376,9 @@ const UpsertAppointmentForm = ({
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {field.value ? (
-                          format(field.value, "PPP", { locale: ptBR })
+                          dayjs(field.value)
+                            .locale("pt-br")
+                            .format("D [de] MMMM [de] YYYY")
                         ) : (
                           <span>Selecione uma data</span>
                         )}

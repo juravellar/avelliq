@@ -42,7 +42,12 @@ export const updateSupportTicket = actionClient
       message: z
         .string()
         .trim()
-        .max(10_000, { message: "Use até 10.000 caracteres." }),
+        .max(10_000, { message: "Use até 10.000 caracteres." })
+        // Empty is a status-only update; otherwise the same 2-character
+        // minimum as the customer's message.
+        .refine((value) => value.length !== 1, {
+          message: "Escreva a mensagem.",
+        }),
     }),
   )
   .action(async ({ parsedInput: { ticketId, status, message } }) => {
@@ -56,9 +61,6 @@ export const updateSupportTicket = actionClient
       (!isSupportOwner(session?.user) && !isSupportTicket(ticket))
     ) {
       throw new UserFacingError("Atendimento não encontrado.");
-    }
-    if (message.length === 1) {
-      throw new UserFacingError("Escreva a mensagem.");
     }
     const problem = updateProblem({
       current: ticket.status,

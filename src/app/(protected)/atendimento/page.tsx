@@ -2,6 +2,7 @@ import { ChevronRight, FileText, Inbox, Search } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { StatusBadge } from "@/components/support/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +36,6 @@ import {
 import { cn } from "@/lib/utils";
 
 import { InboxProblem } from "./_components/inbox-states";
-import { StatusBadge } from "./_components/status-badge";
 
 interface InboxPageProps {
   searchParams: Promise<{ busca?: string; status?: string; pagina?: string }>;
