@@ -51,11 +51,12 @@ describe("email", () => {
     );
   });
 
-  it("puts the link in a button and spelled out", () => {
+  it("puts the link in a button, in Outlook's button and spelled out", () => {
     const { html } = verificationEmail("https://x/verify?token=a&b=1");
     expect(
       html.match(/href="https:\/\/x\/verify\?token=a&amp;b=1"/g),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
+    expect(html).toContain("<v:roundrect");
     expect(html).toContain("Confirmar meu email");
   });
 
