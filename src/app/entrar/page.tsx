@@ -47,6 +47,9 @@ const GOOGLE_ERRORS: Record<string, string> = {
   account_not_linked:
     'Já existe uma conta com este e-mail, criada com senha, e o e-mail dela ainda não foi confirmado. Entre com e-mail e senha para receber o link de confirmação (se não lembrar a senha, use "Esqueci minha senha"). Depois de confirmar, o login com Google passa a funcionar.',
   access_denied: "O login com Google foi cancelado.",
+  // Also what a blocked account gets: the callback can't say more.
+  unable_to_create_session:
+    "Não foi possível entrar com o Google. Se a sua conta foi bloqueada, fale com o suporte do Avelliq pelo botão Ajuda.",
 };
 
 const googleErrorMessage = (error: string | undefined) =>

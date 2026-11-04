@@ -124,3 +124,51 @@ export const canChangeRole = (
     managed.length > 0 && (!isStaffRole(current) || managed.includes(current))
   );
 };
+
+// Why an account was blocked or its deletion asked for. A fixed list, so the
+// records never hold free text about the person.
+export const MODERATION_REASONS = {
+  holder: "Pedido do titular",
+  spam: "Conta falsa ou spam",
+  abuse: "Uso indevido",
+  test: "Conta de teste",
+  duplicate: "Conta duplicada",
+  other: "Outro motivo",
+} as const;
+export type ModerationReason = keyof typeof MODERATION_REASONS;
+export const MODERATION_REASON_IDS = Object.keys(MODERATION_REASONS) as [
+  ModerationReason,
+  ...ModerationReason[],
+];
+
+type Moderated = StaffCandidate & { id: string };
+
+// Who may block an account: owners anyone but an owner, admins anyone but
+// owners and admins. Never one's own account.
+export const canBlock = (
+  viewer: (StaffCandidate & { id: string }) | null | undefined,
+  account: Moderated,
+) => {
+  const role = roleOf(viewer);
+  if (!viewer || viewer.id === account.id || isSupportOwner(account)) {
+    return false;
+  }
+  if (role === "owner") {
+    return true;
+  }
+  return role === "admin" && roleOf(account) !== "admin";
+};
+
+// Only owners delete other accounts. Admins ask them (canRequestDeletion).
+export const canDeleteAccount = (
+  viewer: (StaffCandidate & { id: string }) | null | undefined,
+  account: Moderated,
+) =>
+  roleOf(viewer) === "owner" &&
+  viewer!.id !== account.id &&
+  !isSupportOwner(account);
+
+export const canRequestDeletion = (
+  viewer: (StaffCandidate & { id: string }) | null | undefined,
+  account: Moderated,
+) => roleOf(viewer) === "admin" && canBlock(viewer, account);

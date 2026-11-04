@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   canAnswerSupport,
+  canBlock,
   canChangeRole,
+  canDeleteAccount,
+  canRequestDeletion,
   canSeeAccounts,
   canSeeSupportInbox,
   canSimulatePlan,
@@ -168,5 +171,50 @@ describe("team roles", () => {
     expect(canSeeSupportInbox({ ...admin, emailVerified: false })).toBe(false);
     expect(canSeeAccounts({ ...admin, emailVerified: false })).toBe(false);
     expect(canSeeSupportInbox({ ...customer, staffRole: "root" })).toBe(false);
+  });
+});
+
+describe("account moderation", () => {
+  beforeEach(() => vi.stubEnv("SUPPORT_ADMIN_EMAILS", "equipe@avelliq.com"));
+  afterEach(() => vi.unstubAllEnvs());
+
+  const ownerUser = { ...owner, id: "owner" };
+  const otherOwner = {
+    id: "owner2",
+    email: "equipe@avelliq.com",
+    emailVerified: true,
+  };
+  const adminUser = { ...admin, id: "admin" };
+  const otherAdmin = { ...admin, id: "admin2", email: "b@y.com" };
+  const supportUser = { ...support, id: "support" };
+  const qaUser = { ...qa, id: "qa" };
+  const customerUser = { ...customer, id: "customer" };
+
+  it("lets owners block anyone but owners, and admins anyone but owners and admins", () => {
+    expect(canBlock(ownerUser, customerUser)).toBe(true);
+    expect(canBlock(ownerUser, adminUser)).toBe(true);
+    expect(canBlock(ownerUser, otherOwner)).toBe(false);
+    expect(canBlock(ownerUser, ownerUser)).toBe(false);
+
+    expect(canBlock(adminUser, customerUser)).toBe(true);
+    expect(canBlock(adminUser, supportUser)).toBe(true);
+    expect(canBlock(adminUser, otherAdmin)).toBe(false);
+    expect(canBlock(adminUser, otherOwner)).toBe(false);
+
+    expect(canBlock(supportUser, customerUser)).toBe(false);
+    expect(canBlock(qaUser, customerUser)).toBe(false);
+    expect(canBlock(undefined, customerUser)).toBe(false);
+  });
+
+  it("lets only owners delete, and admins ask them to", () => {
+    expect(canDeleteAccount(ownerUser, customerUser)).toBe(true);
+    expect(canDeleteAccount(ownerUser, otherOwner)).toBe(false);
+    expect(canDeleteAccount(ownerUser, ownerUser)).toBe(false);
+    expect(canDeleteAccount(adminUser, customerUser)).toBe(false);
+
+    expect(canRequestDeletion(adminUser, customerUser)).toBe(true);
+    expect(canRequestDeletion(adminUser, otherAdmin)).toBe(false);
+    expect(canRequestDeletion(ownerUser, customerUser)).toBe(false);
+    expect(canRequestDeletion(supportUser, customerUser)).toBe(false);
   });
 });
