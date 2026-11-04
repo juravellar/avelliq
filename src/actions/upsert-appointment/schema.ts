@@ -10,9 +10,7 @@ export const upsertAppointmentSchema = z.object({
   doctorId: z.string().uuid({
     message: "Médico é obrigatório.",
   }),
-  date: z.date({
-    message: "Data é obrigatória.",
-  }),
+  date: z.string().date("Data é obrigatória."), // YYYY-MM-DD
   time: z.string().min(1, {
     message: "Horário é obrigatório.",
   }),

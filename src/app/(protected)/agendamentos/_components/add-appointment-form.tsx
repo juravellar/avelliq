@@ -73,6 +73,10 @@ const formSchema = z.object({
   }),
 });
 
+// The day the user clicked, from the picker's local calendar parts. It travels
+// as YYYY-MM-DD so the server decides the instant, in clinic time.
+const pickedDay = (date: Date) => dayjs(date).format("YYYY-MM-DD");
+
 interface UpsertAppointmentFormProps {
   isOpen: boolean;
   patients: PatientOption[];
@@ -137,7 +141,11 @@ const UpsertAppointmentForm = ({
         patientId: appointment.patientId,
         doctorId: appointment.doctorId,
         appointmentPrice: appointment.appointmentPriceInCents / 100,
-        date: appointment.date,
+        // The picker works in the browser's calendar, so the clinic's day is
+        // turned into that day's local midnight.
+        date: dayjs(
+          inClinicTimezone(appointment.date).format("YYYY-MM-DD"),
+        ).toDate(),
         time: inClinicTimezone(appointment.date).format("HH:mm:ss"),
       };
     }
@@ -176,7 +184,7 @@ const UpsertAppointmentForm = ({
     ],
     queryFn: async () =>
       getAvailableTimes({
-        date: dayjs(selectedDate).format("YYYY-MM-DD"),
+        date: pickedDay(selectedDate),
         doctorId: selectedDoctorId,
         ignoreAppointmentId: appointment?.id,
       }),
@@ -218,6 +226,7 @@ const UpsertAppointmentForm = ({
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     upsertAppointmentAction.execute({
       ...values,
+      date: pickedDay(values.date),
       id: appointment?.id,
       appointmentPriceInCents: reaisToCents(values.appointmentPrice),
     });

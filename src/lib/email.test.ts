@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  appUrl,
   isEmailConfigured,
   resetPasswordEmail,
   sendEmail,
@@ -71,6 +72,23 @@ describe("email", () => {
     const { html } = verificationEmail("https://x");
     expect(html).not.toContain('href=""');
     expect(html).toContain('href="https://www.avelliq.com.br"');
+  });
+
+  it("falls back to the preview's own URL, never to production", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "avelliq-git-x.vercel.app");
+    expect(appUrl()).toBe("https://avelliq-git-x.vercel.app");
+
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(appUrl()).toBe("https://www.avelliq.com.br");
+  });
+
+  it("prefers the configured app URL over the preview's", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.example.com/");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "avelliq-git-x.vercel.app");
+    expect(appUrl()).toBe("https://app.example.com");
   });
 
   it("keeps the card at 560px in Outlook, which ignores max-width", () => {

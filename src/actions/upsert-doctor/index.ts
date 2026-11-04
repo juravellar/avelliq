@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { withClinicLock } from "@/db/clinic-lock";
 import { doctorsTable } from "@/db/schema";
 import { clinicTimeToUtc } from "@/helpers/time";
+import { UserFacingError } from "@/lib/action-errors";
 import { recordAudit } from "@/lib/audit";
 import { clinicWriteActionClient } from "@/lib/clinic-action";
 import { ensurePlanAllows } from "@/lib/plan-limits";
@@ -25,6 +26,11 @@ export const upsertDoctor = clinicWriteActionClient
         : undefined;
       if (existingDoctor && existingDoctor.clinicId !== clinicId) {
         throw new Error("Médico não encontrado");
+      }
+      // Deleted in the meantime: saving must not bring it back with the
+      // client's id.
+      if (parsedInput.id && !existingDoctor) {
+        throw new UserFacingError("Médico não encontrado. Atualize a página.");
       }
       if (!existingDoctor) {
         const doctorCount = await tx.$count(

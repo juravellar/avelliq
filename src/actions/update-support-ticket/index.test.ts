@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getTicket: vi.fn(),
   inserted: vi.fn(),
   updated: vi.fn(),
+  commit: vi.fn(),
   audit: vi.fn(),
 }));
 vi.mock("@/lib/audit", () => ({ recordAudit: mocks.audit }));
@@ -27,13 +28,17 @@ vi.mock("@/lib/support/tickets", () => ({
 }));
 vi.mock("@/db", () => ({
   db: {
-    transaction: async (run: (tx: unknown) => Promise<void>) =>
-      run({
+    transaction: async (run: (tx: unknown) => Promise<void>) => {
+      await run({
         insert: () => ({ values: mocks.inserted }),
         update: () => ({
-          set: (values: unknown) => ({ where: () => mocks.updated(values) }),
+          set: (values: unknown) => ({
+            where: () => ({ returning: async () => mocks.updated(values) }),
+          }),
         }),
-      }),
+      });
+      await mocks.commit();
+    },
   },
 }));
 
@@ -82,6 +87,7 @@ describe("updateSupportTicket", () => {
     mocks.getTicket.mockResolvedValue(ticket());
     mocks.sendEmail.mockResolvedValue(undefined);
     mocks.audit.mockResolvedValue(undefined);
+    mocks.updated.mockResolvedValue([{ id: TICKET_ID }]);
   });
 
   it("answers in the thread, with the protocol, and stores the answer", async () => {
@@ -206,7 +212,7 @@ describe("updateSupportTicket", () => {
 
   it("says the message went out when storing it fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    mocks.inserted.mockRejectedValue(new Error("connection lost"));
+    mocks.commit.mockRejectedValue(new Error("connection lost"));
 
     const result = await updateSupportTicket({
       ticketId: TICKET_ID,
@@ -214,6 +220,35 @@ describe("updateSupportTicket", () => {
       message: "Resposta",
     });
 
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
     expect(result?.serverError).toContain("Não envie de novo");
+  });
+
+  it("sends nothing when someone finalized the ticket in the meantime", async () => {
+    mocks.updated.mockResolvedValue([]);
+
+    const result = await updateSupportTicket({
+      ticketId: TICKET_ID,
+      status: "in_review",
+      message: "Resposta",
+    });
+
+    expect(result?.serverError).toContain("acabou de ser finalizado");
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(mocks.inserted).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
+  it("stores nothing when the e-mail can't be sent", async () => {
+    mocks.sendEmail.mockRejectedValue(new Error("resend down"));
+
+    const result = await updateSupportTicket({
+      ticketId: TICKET_ID,
+      status: "in_review",
+      message: "Resposta",
+    });
+
+    expect(result?.serverError).not.toContain("Não envie de novo");
+    expect(mocks.commit).not.toHaveBeenCalled();
   });
 });

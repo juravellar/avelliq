@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { z } from "zod";
 
@@ -20,6 +20,7 @@ import {
   isSupportTicket,
 } from "@/lib/support/tickets";
 import {
+  FINAL_STATUSES,
   isFinalStatus,
   protocolOf,
   quoteMessage,
@@ -70,57 +71,23 @@ export const updateSupportTicket = actionClient
     }
 
     const protocol = protocolOf(ticket.number);
-    if (message) {
-      const supportAddress = process.env.SUPPORT_EMAIL;
-      if (!isEmailConfigured() || !supportAddress) {
-        throw new UserFacingError(
-          "O envio de e-mails do atendimento não está configurado (veja o README).",
-        );
-      }
-      const customerMessages = ticket.messages.filter(
-        ({ author }) => author === "customer",
+    const supportAddress = process.env.SUPPORT_EMAIL;
+    if (message && (!isEmailConfigured() || !supportAddress)) {
+      throw new UserFacingError(
+        "O envio de e-mails do atendimento não está configurado (veja o README).",
       );
-      const last = customerMessages.at(-1);
-      await sendEmail({
-        from: `Avelliq <${supportAddress}>`,
-        to: ticket.customerEmail,
-        subject: ticketSubject(protocol, ticket.subject, { reply: true }),
-        ...supportReplyEmail({
-          answer: message,
-          quoted: last?.body
-            ? quoteMessage(
-                ticket.customerName || ticket.customerEmail,
-                inClinicTimezone(last.createdAt).format(
-                  "DD/MM/YYYY [às] HH:mm",
-                ),
-                last.body,
-              )
-            : "",
-          protocol,
-          finalStatusName: isFinalStatus(status)
-            ? STATUS_NAMES[status].toLowerCase()
-            : undefined,
-          ticketUrl: await customerTicketUrl(ticket),
-        }),
-        headers: ticketThreadHeaders(
-          customerMessages.map(({ messageId }) => messageId ?? ""),
-        ),
-      });
     }
 
-    // The message already went out: if storing it fails, the error says so
-    // instead of inviting a second send.
+    // The status is written first, guarded against a colleague having
+    // finalized the ticket since it was read, and the e-mail goes out before
+    // the commit: a conflict sends nothing, a failed send stores nothing.
+    // Once the e-mail is out, a failure to commit says so instead of
+    // inviting a second send.
     const statusChange = status !== ticket.status ? status : null;
+    let sent = false;
     try {
       await db.transaction(async (tx) => {
-        await tx.insert(supportMessagesTable).values({
-          ticketId: ticket.id,
-          author: "team",
-          userId: session!.user.id,
-          body: message || null,
-          statusChange,
-        });
-        await tx
+        const updated = await tx
           .update(supportTicketsTable)
           .set({
             status,
@@ -128,9 +95,62 @@ export const updateSupportTicket = actionClient
               ? { awaitingTeam: false, lastMessageAt: new Date() }
               : {}),
           })
-          .where(eq(supportTicketsTable.id, ticket.id));
+          .where(
+            and(
+              eq(supportTicketsTable.id, ticket.id),
+              notInArray(supportTicketsTable.status, FINAL_STATUSES),
+            ),
+          )
+          .returning({ id: supportTicketsTable.id });
+        if (updated.length === 0) {
+          throw new UserFacingError(
+            "Este atendimento acabou de ser finalizado por outra pessoa. Atualize a página.",
+          );
+        }
+        await tx.insert(supportMessagesTable).values({
+          ticketId: ticket.id,
+          author: "team",
+          userId: session!.user.id,
+          body: message || null,
+          statusChange,
+        });
+        if (message) {
+          const customerMessages = ticket.messages.filter(
+            ({ author }) => author === "customer",
+          );
+          const last = customerMessages.at(-1);
+          await sendEmail({
+            from: `Avelliq <${supportAddress}>`,
+            to: ticket.customerEmail,
+            subject: ticketSubject(protocol, ticket.subject, { reply: true }),
+            ...supportReplyEmail({
+              answer: message,
+              quoted: last?.body
+                ? quoteMessage(
+                    ticket.customerName || ticket.customerEmail,
+                    inClinicTimezone(last.createdAt).format(
+                      "DD/MM/YYYY [às] HH:mm",
+                    ),
+                    last.body,
+                  )
+                : "",
+              protocol,
+              finalStatusName: isFinalStatus(status)
+                ? STATUS_NAMES[status].toLowerCase()
+                : undefined,
+              ticketUrl: await customerTicketUrl(ticket),
+            }),
+            headers: ticketThreadHeaders(
+              customerMessages.map(({ messageId }) => messageId ?? ""),
+            ),
+          });
+          sent = true;
+        }
       });
     } catch (error) {
+      if (error instanceof UserFacingError || (message && !sent)) {
+        throw error;
+      }
       console.error("Support update not stored:", (error as Error).message);
       throw new UserFacingError(
         message

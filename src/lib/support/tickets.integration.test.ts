@@ -222,6 +222,135 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(messages[0].messageId).toBeNull();
   });
 
+  it("links the form's notice even after a help-panel reply", async () => {
+    const {
+      addCustomerMessage,
+      createFormTicket,
+      formNoticeHeader,
+      importReceivedEmail,
+      TICKET_HEADER,
+    } = await load();
+    const ticket = await createFormTicket({
+      name: "Ana",
+      email: customer,
+      subject: "Dúvida: horário",
+      message: "Como mudo o horário?",
+      context: "Conta: user_1",
+    });
+    // Also has no e-mail id; only the form's own message may take the notice's.
+    await addCustomerMessage(ticket.id, customer, "Ainda estou aqui.");
+
+    const notice = await importReceivedEmail(
+      received({
+        from: "Avelliq <nao-responda@mail.avelliq.com.br>",
+        reply_to: [customer],
+        subject: `[Avelliq · Protocolo ${ticket.protocol}] Dúvida: horário`,
+        headers: {
+          [TICKET_HEADER.toLowerCase()]: formNoticeHeader(ticket.protocol),
+        },
+        authentication: { spf: "pass", dkim: "pass", dmarc: "gray" },
+      }),
+      NOW,
+    );
+
+    expect(notice).toBeNull();
+    const messages = await messagesOf(ticket.id);
+    expect(messages).toHaveLength(2);
+    expect(messages[0].resendEmailId).not.toBeNull();
+    expect(messages[1].resendEmailId).toBeNull();
+  });
+
+  it("keeps an auto-reply in the thread without asking the team to answer", async () => {
+    const { db, schema, importReceivedEmail, getTicket } = await load();
+    const { eq } = await import("drizzle-orm");
+    const first = received({ from: customer });
+    const opened = (await importReceivedEmail(first, NOW))!.ticket;
+    await db
+      .update(schema.supportTicketsTable)
+      .set({ awaitingTeam: false })
+      .where(eq(schema.supportTicketsTable.id, opened.id));
+
+    const auto = await importReceivedEmail(
+      received({
+        from: customer,
+        subject: "Resposta automática: Não consigo agendar",
+        headers: {
+          "in-reply-to": first.message_id!,
+          "auto-submitted": "auto-replied",
+        },
+        created_at: "2026-11-04T12:10:00Z",
+      }),
+      NOW,
+    );
+
+    expect(auto).toMatchObject({ opened: false });
+    expect(auto?.ticket.id).toBe(opened.id);
+    const stored = (await getTicket(opened.id))!;
+    expect(stored.awaitingTeam).toBe(false);
+    expect(stored.messages).toHaveLength(2);
+  });
+
+  it("files an auto-reply to a finalized ticket there, without a new ticket", async () => {
+    const { db, schema, importReceivedEmail, getTicket } = await load();
+    const { eq } = await import("drizzle-orm");
+    const first = received({ from: customer });
+    const opened = (await importReceivedEmail(first, NOW))!.ticket;
+    await db
+      .update(schema.supportTicketsTable)
+      .set({ status: "concluded", awaitingTeam: false })
+      .where(eq(schema.supportTicketsTable.id, opened.id));
+
+    const auto = await importReceivedEmail(
+      received({
+        from: customer,
+        headers: {
+          "in-reply-to": first.message_id!,
+          "auto-submitted": "auto-replied",
+        },
+      }),
+      NOW,
+    );
+
+    expect(auto).toMatchObject({ opened: false });
+    const stored = (await getTicket(opened.id))!;
+    expect(stored).toMatchObject({ status: "concluded", awaitingTeam: false });
+    expect(stored.messages).toHaveLength(2);
+  });
+
+  it("still opens a ticket for an auto-reply that matches none", async () => {
+    const { importReceivedEmail } = await load();
+    const auto = await importReceivedEmail(
+      received({
+        from: customer,
+        headers: { "auto-submitted": "auto-replied" },
+      }),
+      NOW,
+    );
+
+    expect(auto?.opened).toBe(true);
+  });
+
+  it("counts a message imported after the team already opened the ticket", async () => {
+    const { importReceivedEmail, countNewForTeam, markSeenByTeam } =
+      await load();
+    const first = received({ from: customer });
+    const opened = (await importReceivedEmail(first, NOW))!.ticket;
+    await markSeenByTeam(opened.id);
+    const before = await countNewForTeam({ seesAll: true });
+
+    // Arrived before the team opened the ticket, imported only afterwards.
+    await importReceivedEmail(
+      received({
+        from: customer,
+        headers: { "in-reply-to": first.message_id! },
+        created_at: "2026-11-04T12:10:00Z",
+      }),
+      NOW,
+    );
+
+    expect(await countNewForTeam({ seesAll: true })).toBe(before + 1);
+  });
+
   it("drops the notice of a form ticket that was already deleted", async () => {
     const {
       db,

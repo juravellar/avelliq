@@ -7,11 +7,7 @@ import { z } from "zod";
 import { isUniqueViolation, withClinicLock } from "@/db/clinic-lock";
 import { appointmentsTable, patientsTable } from "@/db/schema";
 import { priceInCentsSchema } from "@/helpers/currency";
-import {
-  clinicDateTimeToDate,
-  clinicMonthRange,
-  inClinicTimezone,
-} from "@/helpers/time";
+import { clinicDateTimeToDate, clinicMonthRange } from "@/helpers/time";
 import { UserFacingError } from "@/lib/action-errors";
 import { recordAudit } from "@/lib/audit";
 import { computeAvailableTimes } from "@/lib/available-times";
@@ -28,7 +24,7 @@ export const upsertAppointment = clinicWriteActionClient
       id: z.string().uuid().optional(),
       patientId: z.string().uuid(),
       doctorId: z.string().uuid(),
-      date: z.date(),
+      date: z.string().date(), // YYYY-MM-DD, the day picked in the clinic
       time: z.string(),
       appointmentPriceInCents: priceInCentsSchema(
         "Valor da consulta é obrigatório.",
@@ -37,9 +33,7 @@ export const upsertAppointment = clinicWriteActionClient
   )
   .action(async ({ parsedInput, ctx }) => {
     const clinicId = ctx.clinic.id;
-    const appointmentDay = inClinicTimezone(parsedInput.date).format(
-      "YYYY-MM-DD",
-    );
+    const appointmentDay = parsedInput.date;
     try {
       await withClinicLock(clinicId, async (tx) => {
         const patient = await tx.query.patientsTable.findFirst({

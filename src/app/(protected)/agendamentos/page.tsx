@@ -123,6 +123,7 @@ const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
             days={days}
             slots={calendarSlots(
               doctorId ? doctors.filter(({ id }) => id === doctorId) : doctors,
+              appointments,
             )}
             appointments={appointments}
             doctors={doctors}

@@ -60,9 +60,22 @@ export const isDoctorWorking = (
 
 const DEFAULT_HOURS = { from: "08:00:00", to: "18:00:00" };
 
+// The grid row an appointment sits in: its clinic time rounded down to the
+// 30-minute step, so an off-grid minute still lands in a cell.
+const slotOf = (local: ReturnType<typeof inClinicTimezone>) =>
+  local
+    .minute(local.minute() < 30 ? 0 : 30)
+    .second(0)
+    .format("HH:mm:ss");
+
 // The rows of the calendar: every slot from the earliest start to the latest
-// end among the doctors shown, so nobody's hours are cut off.
-export const calendarSlots = (doctors: CalendarDoctor[]) => {
+// end among the doctors shown, so nobody's hours are cut off. Slots of loaded
+// appointments are added too, so one outside the doctors' current hours
+// (shortened since it was booked) is never hidden.
+export const calendarSlots = (
+  doctors: CalendarDoctor[],
+  appointments: { date: Date }[] = [],
+) => {
   const hours = doctors.map(workingHours);
   const from = hours.length
     ? hours.map((h) => h.from).sort()[0]
@@ -73,7 +86,14 @@ export const calendarSlots = (doctors: CalendarDoctor[]) => {
         .sort()
         .at(-1)!
     : DEFAULT_HOURS.to;
-  return generateTimeSlots().filter((slot) => slot >= from && slot <= to);
+  const booked = new Set(
+    appointments.map(({ date }) => slotOf(inClinicTimezone(date))),
+  );
+  const slots = new Set(
+    generateTimeSlots().filter((slot) => slot >= from && slot <= to),
+  );
+  booked.forEach((slot) => slots.add(slot));
+  return [...slots].sort();
 };
 
 // Where an appointment goes in the grid: its clinic day and slot.
@@ -94,7 +114,7 @@ export const cellKey = (day: string, slot: string) => `${day}|${slot}`;
 
 export const appointmentCell = (date: Date) => {
   const local = inClinicTimezone(date);
-  return cellKey(local.format(DAY), local.format("HH:mm:ss"));
+  return cellKey(local.format(DAY), slotOf(local));
 };
 
 export const groupByCell = <T extends { date: Date }>(appointments: T[]) => {

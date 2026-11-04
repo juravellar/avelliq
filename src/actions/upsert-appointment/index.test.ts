@@ -47,8 +47,8 @@ const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
 const DOCTOR_ID = "22222222-2222-4222-8222-222222222222";
 const PATIENT_ID = "33333333-3333-4333-8333-333333333333";
 
-// Midnight in São Paulo, as the browser date picker sends it.
-const MONDAY_IN_CLINIC = new Date("2026-10-12T03:00:00.000Z");
+// The calendar day the user picked, as the form sends it.
+const MONDAY_IN_CLINIC = "2026-10-12";
 
 const input = {
   patientId: PATIENT_ID,
@@ -104,6 +104,13 @@ describe("upsertAppointment", () => {
         date: new Date("2026-10-12T11:00:00.000Z"),
       }),
     );
+  });
+
+  it("refuses a date that is not a calendar day", async () => {
+    const result = await upsertAppointment({ ...input, date: "2026-02-31" });
+
+    expect(result?.validationErrors).toBeDefined();
+    expect(mocks.insertValues).not.toHaveBeenCalled();
   });
 
   it("refuses a patient from another clinic", async () => {

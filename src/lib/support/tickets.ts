@@ -49,6 +49,7 @@ import {
 import {
   cleanSubject,
   emailIdHash,
+  isAutomatedEmail,
   isFinalStatus,
   parseProtocol,
   protocolOf,
@@ -257,13 +258,25 @@ const linkFormNotice = async (email: ReceivedEmail) => {
   const linked = await db
     .update(supportMessagesTable)
     // Only the Resend id: the notice's Message-ID is an e-mail the customer
-    // never got, and answers must not claim to reply to it.
+    // never got, and answers must not claim to reply to it. It goes on only
+    // one message, the form's own (the earliest): replies typed later in the
+    // help panel also have no e-mail id, and the column is unique.
     .set({ resendEmailId: email.id })
     .where(
-      and(
-        eq(supportMessagesTable.ticketId, ticket.id),
-        eq(supportMessagesTable.author, "customer"),
-        isNull(supportMessagesTable.resendEmailId),
+      inArray(
+        supportMessagesTable.id,
+        db
+          .select({ id: supportMessagesTable.id })
+          .from(supportMessagesTable)
+          .where(
+            and(
+              eq(supportMessagesTable.ticketId, ticket.id),
+              eq(supportMessagesTable.author, "customer"),
+              isNull(supportMessagesTable.resendEmailId),
+            ),
+          )
+          .orderBy(asc(supportMessagesTable.createdAt))
+          .limit(1),
       ),
     )
     .returning({ id: supportMessagesTable.id });
@@ -333,20 +346,47 @@ export const importReceivedEmail = async (
   // copying its protocol.
   const unverified = email.authentication?.dmarc !== "pass";
   const previous = unverified ? null : match;
+  // Out-of-office replies and the like answer the team's own e-mail, not the
+  // team's turn: they are kept in the conversation, but never ask for an
+  // answer, reopen a finished ticket or start a new one.
+  const automated = isAutomatedEmail(email, customer);
 
   let result: { ticket: Ticket; opened: boolean };
   try {
     result = await db.transaction(async (tx) => {
-      if (previous && !isFinalStatus(previous.status)) {
+      // The status read above may be stale: the team can finalize the ticket
+      // meanwhile. Locking the row makes the check final, since finalizing
+      // waits for this transaction.
+      const [current] = previous
+        ? await tx
+            .select()
+            .from(supportTicketsTable)
+            .where(eq(supportTicketsTable.id, previous.id))
+            .for("update")
+        : [];
+      // Gone meanwhile (account deleted, retention): the e-mail opens a new
+      // ticket instead.
+      const target = previous ? current : undefined;
+      if (target && (automated || !isFinalStatus(target.status))) {
         await tx.insert(supportMessagesTable).values({
           ...message,
-          ticketId: previous.id,
+          ticketId: target.id,
           author: "customer",
         });
+        if (automated) {
+          return { ticket: target, opened: false };
+        }
+        // teamSeenAt is cleared because lastMessageAt is when the e-mail
+        // arrived: a teammate may have opened the ticket after that but
+        // before this import, and the message would never count as new.
         const [ticket] = await tx
           .update(supportTicketsTable)
-          .set({ awaitingTeam: true, lastMessageAt: receivedAt })
-          .where(eq(supportTicketsTable.id, previous.id))
+          .set({
+            awaitingTeam: true,
+            lastMessageAt: receivedAt,
+            teamSeenAt: null,
+          })
+          .where(eq(supportTicketsTable.id, target.id))
           .returning();
         return { ticket, opened: false };
       }
@@ -358,15 +398,15 @@ export const importReceivedEmail = async (
           customerName: isHelpFormMessage(email) ? null : nameOf(email.from),
           inbox: inboxOf(email),
           source: "email",
-          previousTicketId: previous?.id ?? null,
+          previousTicketId: target?.id ?? null,
         },
         message,
       );
-      if (previous) {
+      if (target) {
         await tx.insert(supportMessagesTable).values({
           ticketId: ticket.id,
           author: "system",
-          body: `Resposta ao protocolo ${protocolOf(previous.number)}, que já estava finalizado. Este novo atendimento continua a conversa.`,
+          body: `Resposta ao protocolo ${protocolOf(target.number)}, que já estava finalizado. Este novo atendimento continua a conversa.`,
           createdAt: receivedAt,
         });
       } else if (unverified && match) {

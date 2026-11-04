@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { patientsTable } from "@/db/schema";
+import { actionErrorMessage } from "@/lib/action-errors";
 
 import UpsertPatientForm from "./upsert-patient-form";
 
@@ -42,7 +43,11 @@ export function PatientTableActions({ patient }: PatientTableActionsProps) {
   const handleDeletePatientClick = async () => {
     setIsDeleting(true);
     try {
-      await deletePatient({ id: patient.id });
+      const result = await deletePatient({ id: patient.id });
+      if (result?.serverError || result?.validationErrors) {
+        toast.error(actionErrorMessage(result, "Erro ao deletar paciente."));
+        return;
+      }
       toast.success("Paciente deletado com sucesso.");
     } catch {
       toast.error("Erro ao deletar paciente.");

@@ -40,7 +40,6 @@ const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
 const DOCTOR_ID = "22222222-2222-4222-8222-222222222222";
 
 const input = {
-  id: DOCTOR_ID,
   name: "Dra. Ana",
   specialty: "Cardiologia",
   appointmentPriceInCents: 20000,
@@ -73,7 +72,7 @@ describe("upsertDoctor", () => {
   it("refuses to overwrite a doctor from another clinic", async () => {
     mocks.findDoctor.mockResolvedValue({ id: DOCTOR_ID, clinicId: "other" });
 
-    const result = await upsertDoctor(input);
+    const result = await upsertDoctor({ ...input, id: DOCTOR_ID });
 
     expect(result?.serverError).toBeDefined();
     expect(mocks.values).not.toHaveBeenCalled();
@@ -82,7 +81,7 @@ describe("upsertDoctor", () => {
   it("updates a doctor from the same clinic, storing times in UTC", async () => {
     mocks.findDoctor.mockResolvedValue({ id: DOCTOR_ID, clinicId: CLINIC_ID });
 
-    const result = await upsertDoctor(input);
+    const result = await upsertDoctor({ ...input, id: DOCTOR_ID });
 
     expect(result?.serverError).toBeUndefined();
     expect(mocks.values).toHaveBeenCalledWith(
@@ -97,7 +96,18 @@ describe("upsertDoctor", () => {
     );
   });
 
-  it("creates a doctor when the id does not exist yet", async () => {
+  it("doesn't recreate a doctor that was deleted meanwhile", async () => {
+    mocks.findDoctor.mockResolvedValue(undefined);
+
+    const result = await upsertDoctor({ ...input, id: DOCTOR_ID });
+
+    expect(result?.serverError).toBe(
+      "Médico não encontrado. Atualize a página.",
+    );
+    expect(mocks.values).not.toHaveBeenCalled();
+  });
+
+  it("creates a doctor when there is no id yet", async () => {
     mocks.findDoctor.mockResolvedValue(undefined);
 
     const result = await upsertDoctor(input);
@@ -156,7 +166,7 @@ describe("upsertDoctor", () => {
     mocks.findDoctor.mockResolvedValue({ id: DOCTOR_ID, clinicId: CLINIC_ID });
     mocks.countDoctors.mockResolvedValue(1);
 
-    const result = await upsertDoctor(input);
+    const result = await upsertDoctor({ ...input, id: DOCTOR_ID });
 
     expect(result?.serverError).toBeUndefined();
     expect(mocks.countDoctors).not.toHaveBeenCalled();

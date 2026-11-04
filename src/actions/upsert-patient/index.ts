@@ -34,6 +34,13 @@ export const upsertPatient = clinicWriteActionClient
         if (existingPatient && existingPatient.clinicId !== clinicId) {
           throw new Error("Paciente não encontrado");
         }
+        // Deleted in the meantime: saving must not bring it back with the
+        // client's id.
+        if (parsedInput.id && !existingPatient) {
+          throw new UserFacingError(
+            "Paciente não encontrado. Atualize a página.",
+          );
+        }
         if (
           !isAcceptablePhone(input.phoneNumber, existingPatient?.phoneNumber)
         ) {

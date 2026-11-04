@@ -22,8 +22,9 @@ export const STATUS_NAMES: Record<SupportStatus, string> = {
 
 // Concluded and archived tickets take no more messages. To disagree, the
 // customer opens another ticket quoting the old protocol.
+export const FINAL_STATUSES: SupportStatus[] = ["concluded", "archived"];
 export const isFinalStatus = (status: SupportStatus) =>
-  status === "concluded" || status === "archived";
+  FINAL_STATUSES.includes(status);
 
 // What is kept of a deleted ticket's received e-mail ids: enough to skip the
 // e-mail on the next import, not to find it. Both recording and checking use
