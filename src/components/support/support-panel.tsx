@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Send, X } from "lucide-react";
+import { ArrowLeft, Inbox, Loader2, Send, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -24,6 +24,8 @@ import {
 import { findAnswer } from "@/lib/support/match";
 import { cn } from "@/lib/utils";
 
+import { MyTicket, MyTicketList } from "./my-tickets";
+
 interface Message {
   id: number;
   from: "bot" | "user";
@@ -39,7 +41,18 @@ export interface SupportPanelProps {
   user?: { name: string; email: string } | null;
   // Shown when the form can't send.
   supportEmail: string | null;
+  // Tickets with a team answer the signed-in person hasn't opened yet.
+  unreadTickets?: number;
 }
+
+type View = "chat" | "form" | "tickets" | "ticket";
+
+const SUBTITLES: Record<View, string> = {
+  chat: "Respostas na hora, a qualquer momento",
+  form: "Fale com a nossa equipe",
+  tickets: "Seus atendimentos com a equipe",
+  ticket: "Conversa com a equipe",
+};
 
 // A pause before each answer, so it reads as a reply rather than a flash.
 const REPLY_DELAY_MS = 450;
@@ -53,8 +66,12 @@ export default function SupportPanel({
   onClose,
   user,
   supportEmail,
+  unreadTickets = 0,
 }: SupportPanelProps & { id: string; open: boolean; onClose: () => void }) {
-  const [view, setView] = useState<"chat" | "form">("chat");
+  const [view, setView] = useState<View>("chat");
+  const [ticketId, setTicketId] = useState<string | null>(null);
+  // A new ticket opened to disagree starts by quoting the old protocol.
+  const [formMessage, setFormMessage] = useState("");
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
   const [misses, setMisses] = useState(0);
@@ -176,9 +193,12 @@ export default function SupportPanel({
   const onSent = (email?: string, protocol?: string) => {
     setView("chat");
     setMisses(0);
+    setFormMessage("");
     push({
       from: "bot",
-      text: `Mensagem enviada! Nossa equipe vai responder ${email ? `em ${email}` : "por e-mail"}.${
+      text: `Mensagem enviada! Nossa equipe vai responder ${email ? `em ${email}` : "por e-mail"}${
+        user ? " e aqui, em Meus atendimentos" : ""
+      }.${
         protocol
           ? ` Seu protocolo é ${protocol}: guarde este número. Se precisar contestar uma resposta, abra um novo atendimento e informe esse protocolo.`
           : ""
@@ -196,16 +216,23 @@ export default function SupportPanel({
       className="bg-background animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 flex h-[min(560px,calc(100dvh-6rem))] w-[min(380px,calc(100vw-2rem))] origin-bottom-right flex-col overflow-hidden rounded-2xl border shadow-2xl duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]"
     >
       <header className="bg-avelliq text-avelliq-foreground flex items-center gap-3 px-4 py-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white">
-          <Image src="/logo-symbol.svg" alt="" width={22} height={22} />
-        </span>
+        {view === "tickets" || view === "ticket" ? (
+          <button
+            type="button"
+            onClick={() => setView(view === "ticket" ? "tickets" : "chat")}
+            aria-label="Voltar"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 transition-colors hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        ) : (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white">
+            <Image src="/logo-symbol.svg" alt="" width={22} height={22} />
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <p className="text-sm leading-tight font-semibold">Ajuda Avelliq</p>
-          <p className="text-xs opacity-85">
-            {view === "form"
-              ? "Fale com a nossa equipe"
-              : "Respostas na hora, a qualquer momento"}
-          </p>
+          <p className="text-xs opacity-85">{SUBTITLES[view]}</p>
         </div>
         <button
           type="button"
@@ -261,19 +288,52 @@ export default function SupportPanel({
                 <Send className="h-4 w-4" />
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setView("form")}
-              className="text-muted-foreground hover:text-foreground mt-2 w-full text-center text-xs underline-offset-4 hover:underline"
-            >
-              Prefere falar com uma pessoa? Fale com a equipe
-            </button>
+            <div className="mt-2 flex items-center justify-center gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => setView("form")}
+                className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+              >
+                Fale com a equipe
+              </button>
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => setView("tickets")}
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-1 underline-offset-4 hover:underline"
+                >
+                  <Inbox className="h-3.5 w-3.5" aria-hidden />
+                  Meus atendimentos
+                  {unreadTickets > 0 && (
+                    <span className="bg-avelliq text-avelliq-foreground rounded-full px-1.5 text-[10px] leading-4 font-semibold">
+                      {unreadTickets}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
           </form>
         </>
+      ) : view === "tickets" ? (
+        <MyTicketList
+          onOpen={(id) => {
+            setTicketId(id);
+            setView("ticket");
+          }}
+        />
+      ) : view === "ticket" && ticketId ? (
+        <MyTicket
+          ticketId={ticketId}
+          onDisagree={(protocol) => {
+            setFormMessage(`Sobre o atendimento ${protocol}: `);
+            setView("form");
+          }}
+        />
       ) : (
         <HumanForm
           user={user}
           supportEmail={supportEmail}
+          initialMessage={formMessage}
           onBack={() => setView("chat")}
           onSent={onSent}
         />
@@ -376,11 +436,13 @@ function TypingDots() {
 function HumanForm({
   user,
   supportEmail,
+  initialMessage,
   onBack,
   onSent,
 }: {
   user?: { name: string; email: string } | null;
   supportEmail: string | null;
+  initialMessage: string;
   onBack: () => void;
   onSent: (email?: string, protocol?: string) => void;
 }) {
@@ -409,7 +471,7 @@ function HumanForm({
     ),
     defaultValues: {
       topic: "duvida",
-      message: "",
+      message: initialMessage,
       name: "",
       email: "",
       leaveBlank: "",

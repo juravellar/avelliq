@@ -32,7 +32,7 @@ export function SupportWidget(props: SupportPanelProps) {
         aria-expanded={open}
         aria-controls={started ? panelId : undefined}
         aria-label={open ? "Fechar ajuda" : "Abrir ajuda"}
-        className="bg-avelliq text-avelliq-foreground flex h-12 items-center gap-2 rounded-full px-4 font-medium shadow-lg transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-xl active:scale-95 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+        className="bg-avelliq text-avelliq-foreground relative flex h-12 items-center gap-2 rounded-full px-4 font-medium shadow-lg transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-xl active:scale-95 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
       >
         {open ? (
           <X className="h-5 w-5" aria-hidden />
@@ -40,6 +40,14 @@ export function SupportWidget(props: SupportPanelProps) {
           <MessageCircle className="h-5 w-5" aria-hidden />
         )}
         <span className="hidden text-sm sm:inline">Ajuda</span>
+        {!open && (props.unreadTickets ?? 0) > 0 && (
+          <span
+            className="bg-destructive absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold text-white"
+            aria-label={`${props.unreadTickets} resposta(s) nova(s) da equipe`}
+          >
+            {props.unreadTickets}
+          </span>
+        )}
       </button>
     </div>
   );
