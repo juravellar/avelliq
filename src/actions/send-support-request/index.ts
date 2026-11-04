@@ -16,6 +16,7 @@ import { senderKey, takeSupportSlot } from "@/lib/support/rate-limit";
 import {
   acknowledge,
   createFormTicket,
+  formNoticeHeader,
   TICKET_HEADER,
 } from "@/lib/support/tickets";
 
@@ -100,7 +101,7 @@ export const sendSupportRequest = actionClient
       to: inbox,
       replyTo: email,
       ...supportRequestEmail(request, ticket.protocol),
-      headers: { [TICKET_HEADER]: ticket.protocol },
+      headers: { [TICKET_HEADER]: formNoticeHeader(ticket.protocol) },
     }).catch((error) =>
       console.error("Support notice not sent:", (error as Error).message),
     );

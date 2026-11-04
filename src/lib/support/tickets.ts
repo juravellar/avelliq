@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 import {
   and,
   asc,
@@ -54,6 +56,33 @@ export const TICKET_RETENTION_YEARS = 2;
 // the database: the import links that e-mail to it instead of opening
 // another ticket.
 export const TICKET_HEADER = "X-Avelliq-Protocol";
+
+// The notice is recognized by a signature only this server can make. DMARC
+// can't vouch for it: Avelliq's own mail arrives with "gray" while the
+// domain publishes no DMARC policy.
+const noticeSignature = (protocol: string) =>
+  createHmac("sha256", process.env.BETTER_AUTH_SECRET ?? "")
+    .update(`support-form-notice:${protocol}`)
+    .digest("base64url")
+    .slice(0, 32);
+
+export const formNoticeHeader = (protocol: string) =>
+  `${protocol}; ${noticeSignature(protocol)}`;
+
+// The protocol of a genuine notice's header, or null.
+const signedNoticeProtocol = (header: string | undefined) => {
+  const [protocol, signature] = (header ?? "")
+    .split(";")
+    .map((part) => part.trim());
+  if (!protocol || !signature || !process.env.BETTER_AUTH_SECRET) {
+    return null;
+  }
+  const expected = Buffer.from(noticeSignature(protocol));
+  const given = Buffer.from(signature);
+  return given.length === expected.length && timingSafeEqual(given, expected)
+    ? protocol
+    : null;
+};
 
 // Opening the Atendimento elsewhere (locally with the real keys in
 // .env.local, or a preview deployment) imports the same inbox into another
@@ -185,16 +214,17 @@ const findTicketFor = async (email: ReceivedEmail, sender: string) => {
 };
 
 // The help form's notice comes back into the inbox; it belongs to the
-// ticket the form already opened.
-// The subject's protocol covers a header lost on the way: a notice taken for
-// a new e-mail would open a second ticket and send a second protocol.
+// ticket the form already opened. Without the signed header (lost on the
+// way), the subject's protocol on a DMARC-approved notice still links it: a
+// notice taken for a new e-mail would open a second ticket.
 const linkFormNotice = async (email: ReceivedEmail) => {
-  if (!isHelpFormMessage(email)) {
+  const signed = signedNoticeProtocol(
+    email.headers?.[TICKET_HEADER.toLowerCase()],
+  );
+  if (!signed && !isHelpFormMessage(email)) {
     return false;
   }
-  const number =
-    parseProtocol(email.headers?.[TICKET_HEADER.toLowerCase()] ?? null) ??
-    parseProtocol(email.subject);
+  const number = parseProtocol(signed ?? email.subject);
   if (number === null) {
     return false;
   }
@@ -241,7 +271,11 @@ export const importReceivedEmail = async (
     return null;
   }
 
+  // Where answers go (the Reply-To, when there is one)...
   const sender = normalized(replyTarget(email));
+  // ...but who wrote is the From, which DMARC checks: anyone can put the
+  // customer in Reply-To.
+  const author = isHelpFormMessage(email) ? sender : normalized(email.from);
   const fullBody = email.text?.trim() || htmlToText(email.html ?? "");
   const body =
     fullBody.length > MAX_BODY_LENGTH
@@ -255,11 +289,11 @@ export const importReceivedEmail = async (
     hadAttachments: (email.attachments?.length ?? 0) > 0,
     createdAt: receivedAt,
   };
-  const match = await findTicketFor(email, sender);
-  // A forged From fails DMARC. Mail received before Resend checked it has no
-  // result and is taken as it is.
-  const forged =
-    !!email.authentication && email.authentication.dmarc !== "pass";
+  const match = await findTicketFor(email, author);
+  // A forged From fails DMARC. Domains without a DMARC policy come as "gray"
+  // and mail received before Resend checked has no result: both are taken
+  // as they are.
+  const forged = email.authentication?.dmarc === "fail";
   const previous = forged ? null : match;
 
   let result: { ticket: Ticket; opened: boolean };
