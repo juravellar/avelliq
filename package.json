@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/check-db-schema.mjs && next build",
+    "build": "node scripts/migrate.mjs && node scripts/check-db-schema.mjs && next build",
+    "db:baseline": "CHECK_DB_SCHEMA=1 node scripts/check-db-schema.mjs && node scripts/baseline-migrations.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
