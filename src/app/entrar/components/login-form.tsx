@@ -75,6 +75,12 @@ const LoginForm = ({ canResetPassword }: { canResetPassword: boolean }) => {
       router.push("/painel");
       return;
     }
+    if (error.code === "ACCOUNT_BLOCKED") {
+      toast.error(
+        "Esta conta está bloqueada. Fale com o suporte do Avelliq pelo botão Ajuda.",
+      );
+      return;
+    }
     if (error.code === "EMAIL_NOT_VERIFIED") {
       toast.error(
         "Confirme seu email antes de entrar. Enviamos um novo link para a sua caixa de entrada.",

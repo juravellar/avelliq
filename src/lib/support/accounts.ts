@@ -1,9 +1,9 @@
-import { count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNotNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { usersTable } from "@/db/schema";
 
-import type { StaffRole } from "./admin";
+import type { ModerationReason, StaffRole } from "./admin";
 
 export const ACCOUNTS_PAGE_SIZE = 25;
 
@@ -29,22 +29,38 @@ export interface AccountRow {
   clinicCount: number;
   // "credential" (e-mail and password), "google", ...
   providers: string[];
+  blockedAt: Date | null;
+  blockedReason: ModerationReason | null;
+  deletionRequestedAt: Date | null;
+  deletionRequestReason: ModerationReason | null;
+  deletionRequestedBy: string | null;
 }
+
+export type AccountFilter = "bloqueadas" | "exclusao";
 
 // Every Avelliq account, newest first, for the Contas page.
 export const listAccounts = async ({
   search,
+  filter,
   page,
 }: {
   search?: string;
+  filter?: AccountFilter;
   page: number;
 }) => {
-  const where = search?.trim()
-    ? or(
-        ilike(usersTable.name, searchPattern(search)),
-        ilike(usersTable.email, searchPattern(search)),
-      )
-    : undefined;
+  const where = and(
+    search?.trim()
+      ? or(
+          ilike(usersTable.name, searchPattern(search)),
+          ilike(usersTable.email, searchPattern(search)),
+        )
+      : undefined,
+    filter === "bloqueadas"
+      ? isNotNull(usersTable.blockedAt)
+      : filter === "exclusao"
+        ? isNotNull(usersTable.deletionRequestedAt)
+        : undefined,
+  );
 
   const [rows, [{ total }]] = await Promise.all([
     db
@@ -56,6 +72,11 @@ export const listAccounts = async ({
         plan: usersTable.plan,
         staffRole: usersTable.staffRole,
         createdAt: usersTable.createdAt,
+        blockedAt: usersTable.blockedAt,
+        blockedReason: usersTable.blockedReason,
+        deletionRequestedAt: usersTable.deletionRequestedAt,
+        deletionRequestReason: usersTable.deletionRequestReason,
+        deletionRequestedBy: usersTable.deletionRequestedBy,
         // Written out with table names: inside a subquery Drizzle leaves
         // columns unqualified, and "id" would be the subquery's own.
         clinicCount: sql<number>`(select count(*)::int from users_to_clinics m where m.user_id = users.id)`,
@@ -75,3 +96,12 @@ export const listAccounts = async ({
 
 export const findAccount = (id: string) =>
   db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+
+// Requests waiting for an owner, for the Contas page's notice.
+export const countDeletionRequests = async () => {
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(usersTable)
+    .where(isNotNull(usersTable.deletionRequestedAt));
+  return total;
+};
