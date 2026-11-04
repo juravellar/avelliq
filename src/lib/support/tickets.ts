@@ -55,6 +55,14 @@ export const TICKET_RETENTION_YEARS = 2;
 // another ticket.
 export const TICKET_HEADER = "X-Avelliq-Protocol";
 
+// Opening the Atendimento elsewhere (locally with the real keys in
+// .env.local, or a preview deployment) imports the same inbox into another
+// database: its protocols would reach real customers with wrong numbers.
+const sendsAcknowledgements = () => process.env.VERCEL_ENV === "production";
+
+// A huge e-mail (a newsletter sent to the domain) would weigh on the search.
+const MAX_BODY_LENGTH = 50_000;
+
 type Ticket = typeof supportTicketsTable.$inferSelect;
 type Executor = typeof db | Transaction;
 
@@ -198,7 +206,9 @@ const linkFormNotice = async (email: ReceivedEmail) => {
   }
   const linked = await db
     .update(supportMessagesTable)
-    .set({ resendEmailId: email.id, messageId: email.message_id })
+    // Only the Resend id: the notice's Message-ID is an e-mail the customer
+    // never got, and answers must not claim to reply to it.
+    .set({ resendEmailId: email.id })
     .where(
       and(
         eq(supportMessagesTable.ticketId, ticket.id),
@@ -232,7 +242,11 @@ export const importReceivedEmail = async (
   }
 
   const sender = normalized(replyTarget(email));
-  const body = email.text?.trim() || htmlToText(email.html ?? "");
+  const fullBody = email.text?.trim() || htmlToText(email.html ?? "");
+  const body =
+    fullBody.length > MAX_BODY_LENGTH
+      ? `${fullBody.slice(0, MAX_BODY_LENGTH)}\n\n[mensagem cortada]`
+      : fullBody;
   const receivedAt = new Date(email.created_at);
   const message = {
     body,
@@ -241,7 +255,12 @@ export const importReceivedEmail = async (
     hadAttachments: (email.attachments?.length ?? 0) > 0,
     createdAt: receivedAt,
   };
-  const previous = await findTicketFor(email, sender);
+  const match = await findTicketFor(email, sender);
+  // A forged From fails DMARC. Mail received before Resend checked it has no
+  // result and is taken as it is.
+  const forged =
+    !!email.authentication && email.authentication.dmarc !== "pass";
+  const previous = forged ? null : match;
 
   let result: { ticket: Ticket; opened: boolean };
   try {
@@ -278,6 +297,13 @@ export const importReceivedEmail = async (
           body: `Resposta ao protocolo ${protocolOf(previous.number)}, que já estava finalizado. Este novo atendimento continua a conversa.`,
           createdAt: receivedAt,
         });
+      } else if (forged && match) {
+        await tx.insert(supportMessagesTable).values({
+          ticketId: ticket.id,
+          author: "system",
+          body: `Este e-mail diz responder ao protocolo ${protocolOf(match.number)}, mas o remetente não passou na verificação de autenticidade (DMARC). Por isso não foi juntado àquele atendimento: confirme com o cliente antes de agir.`,
+          createdAt: receivedAt,
+        });
       }
       return { ticket, opened: true };
     });
@@ -290,6 +316,7 @@ export const importReceivedEmail = async (
 
   if (
     result.opened &&
+    sendsAcknowledgements() &&
     isSupportTicket(result.ticket) &&
     isEmailConfigured() &&
     !isOwnAddress(sender) &&
@@ -334,16 +361,17 @@ export const acknowledge = async (ticket: Ticket, messageIds: string[]) => {
 };
 
 // Imports at most this many e-mails per call, so the Atendimento page stays
-// quick (Resend allows a couple of requests per second); the rest come on the
-// next visit.
+// quick; the rest come on the next visit. Resend allows about 2 requests per
+// second, hence the pause between e-mails.
 const IMPORT_PER_SYNC = 10;
 const SCAN_PAGES = 10;
+const PAUSE_MS = 500;
 
 /**
  * Brings the e-mails received since the last import into the database,
  * oldest first. Returns how many are still waiting for the next call.
  */
-export const syncInbox = async () => {
+export const syncInbox = async ({ pauseMs = PAUSE_MS } = {}) => {
   const unseen: ReceivedEmailSummary[] = [];
   let after: string | undefined;
   for (let page = 0; page < SCAN_PAGES; page++) {
@@ -365,7 +393,10 @@ export const syncInbox = async () => {
   }
 
   const batch = unseen.reverse().slice(0, IMPORT_PER_SYNC);
-  for (const summary of batch) {
+  for (const [index, summary] of batch.entries()) {
+    if (index > 0 && pauseMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    }
     try {
       await importReceivedEmail(await getReceivedEmail(summary.id));
     } catch (error) {
@@ -373,7 +404,9 @@ export const syncInbox = async () => {
       if (error instanceof InboxError && error.status === 429) {
         break;
       }
-      throw error;
+      // One e-mail that can't be imported must not hold back the newer ones;
+      // it is tried again on the next visit.
+      console.error("Support e-mail not imported:", (error as Error).message);
     }
   }
   return Math.max(0, unseen.length - batch.length);

@@ -56,6 +56,8 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     vi.stubEnv("SUPPORT_EMAIL", "sac@mail.avelliq.com.br");
     vi.stubEnv("SUPPORT_INBOX", "");
     vi.stubEnv("EMAIL_FROM", "Avelliq <nao-responda@mail.avelliq.com.br>");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.sendEmail.mockResolvedValue(undefined);
     customer = `cliente-${randomUUID().slice(0, 8)}@x.com`;
   });
@@ -207,6 +209,8 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     const messages = await messagesOf(ticket.id);
     expect(messages).toHaveLength(1);
     expect(messages[0].resendEmailId).not.toBeNull();
+    // The team's notice is not an e-mail the customer can be answered on.
+    expect(messages[0].messageId).toBeNull();
   });
 
   it("links the form's notice by its subject when the header is lost", async () => {
@@ -232,6 +236,77 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
+  it("only sends protocols for imported mail in production", async () => {
+    const { importReceivedEmail } = await load();
+    vi.stubEnv("VERCEL_ENV", "preview");
+
+    const result = await importReceivedEmail(received({ from: customer }), NOW);
+
+    expect(result?.opened).toBe(true);
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("doesn't join a forged e-mail to the customer's ticket", async () => {
+    const { importReceivedEmail } = await load();
+    const opened = (await importReceivedEmail(
+      received({ from: customer }),
+      NOW,
+    ))!.ticket;
+
+    const forged = await importReceivedEmail(
+      received({
+        from: customer,
+        subject: `Re: [Avelliq · Protocolo AV-${opened.number}]`,
+        authentication: { dmarc: "fail" },
+      }),
+      NOW,
+    );
+
+    expect(forged?.opened).toBe(true);
+    expect(forged?.ticket.id).not.toBe(opened.id);
+    expect(forged?.ticket.previousTicketId).toBeNull();
+    const messages = await messagesOf(forged!.ticket.id);
+    expect(messages.some(({ body }) => body?.includes("DMARC"))).toBe(true);
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("cuts a huge e-mail", async () => {
+    const { importReceivedEmail } = await load();
+
+    const result = await importReceivedEmail(
+      received({ from: customer, text: "a".repeat(60_000) }),
+      NOW,
+    );
+
+    const [first] = await messagesOf(result!.ticket.id);
+    expect(first.body!.length).toBeLessThan(50_100);
+    expect(first.body).toMatch(/\[mensagem cortada\]$/);
+  });
+
+  it("skips an e-mail that can't be imported and goes on", async () => {
+    const { syncInbox, listTickets } = await load();
+    const { InboxError } = await import("./inbox");
+    const broken = received({ from: customer, subject: "Quebrado" });
+    const fine = received({ from: customer, subject: "Funciona" });
+    mocks.listReceivedEmails.mockResolvedValue({
+      data: [fine, broken],
+      has_more: false,
+    });
+    mocks.getReceivedEmail.mockImplementation(async (id: string) => {
+      if (id === broken.id) throw new InboxError(500);
+      return fine;
+    });
+
+    await syncInbox({ pauseMs: 0 });
+
+    const { rows } = await listTickets({
+      search: customer,
+      page: 1,
+      seesAll: true,
+    });
+    expect(rows.map(({ subject }) => subject)).toEqual(["Funciona"]);
+  });
+
   it("imports new e-mails oldest first and stops at the stored ones", async () => {
     const { importReceivedEmail, syncInbox } = await load();
     const stored = received({ from: customer });
@@ -246,7 +321,7 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
       async (id: string) => [newer, older].find((email) => email.id === id)!,
     );
 
-    const waiting = await syncInbox();
+    const waiting = await syncInbox({ pauseMs: 0 });
 
     expect(waiting).toBe(0);
     expect(mocks.listReceivedEmails).toHaveBeenCalledTimes(1);
