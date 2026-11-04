@@ -154,6 +154,7 @@ describe("upsertAppointment", () => {
     mocks.findAppointment.mockResolvedValue({
       id: APPOINTMENT_ID,
       clinicId: CLINIC_ID,
+      date: new Date("2026-10-12T11:00:00.000Z"),
     });
 
     const result = await upsertAppointment({ ...input, id: APPOINTMENT_ID });
@@ -171,6 +172,39 @@ describe("upsertAppointment", () => {
     expect(mocks.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({ date: new Date("2026-10-12T11:00:00.000Z") }),
     );
+    expect(mocks.countAppointments).not.toHaveBeenCalled();
+  });
+
+  it("refuses moving an appointment into a month that is already full", async () => {
+    const APPOINTMENT_ID = "44444444-4444-4444-8444-444444444444";
+    mocks.findAppointment.mockResolvedValue({
+      id: APPOINTMENT_ID,
+      clinicId: CLINIC_ID,
+      date: new Date("2026-09-14T11:00:00.000Z"),
+    });
+    mocks.countAppointments.mockResolvedValue(40);
+
+    const result = await upsertAppointment({ ...input, id: APPOINTMENT_ID });
+
+    expect(result?.serverError).toBe(
+      "Seu plano permite até 40 agendamentos por mês. Faça upgrade em Assinatura para continuar.",
+    );
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+  });
+
+  it("allows an edit inside the same month even at the limit", async () => {
+    const APPOINTMENT_ID = "44444444-4444-4444-8444-444444444444";
+    mocks.findAppointment.mockResolvedValue({
+      id: APPOINTMENT_ID,
+      clinicId: CLINIC_ID,
+      date: new Date("2026-10-20T11:00:00.000Z"),
+    });
+    mocks.countAppointments.mockResolvedValue(40);
+
+    const result = await upsertAppointment({ ...input, id: APPOINTMENT_ID });
+
+    expect(result?.serverError).toBeUndefined();
+    expect(mocks.updateSet).toHaveBeenCalledOnce();
     expect(mocks.countAppointments).not.toHaveBeenCalled();
   });
 

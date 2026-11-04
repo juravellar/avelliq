@@ -134,6 +134,13 @@
       "when": 1793810392612,
       "tag": "0018_support_team_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793831591697,
+      "tag": "0019_support_deleted_emails",
+      "breakpoints": true
     }
   ]
 }

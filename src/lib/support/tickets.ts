@@ -10,15 +10,18 @@ import {
   gt,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   lt,
   or,
+  type SQL,
   sql,
 } from "drizzle-orm";
 
 import { db } from "@/db";
 import type { Transaction } from "@/db/clinic-lock";
 import {
+  supportDeletedEmailsTable,
   supportMessagesTable,
   supportTicketsTable,
   usersTable,
@@ -34,6 +37,7 @@ import { searchPattern } from "./accounts";
 import { getReceivedEmail, InboxError, listReceivedEmails } from "./inbox";
 import {
   addressOf,
+  customerAddress,
   htmlToText,
   isHelpFormMessage,
   isOwnAddress,
@@ -41,10 +45,10 @@ import {
   nameOf,
   type ReceivedEmail,
   type ReceivedEmailSummary,
-  replyTarget,
 } from "./inbox-helpers";
 import {
   cleanSubject,
+  emailIdHash,
   isFinalStatus,
   parseProtocol,
   protocolOf,
@@ -241,6 +245,12 @@ const linkFormNotice = async (email: ReceivedEmail) => {
   const ticket = await db.query.supportTicketsTable.findFirst({
     where: eq(supportTicketsTable.number, number),
   });
+  if (!ticket && signed) {
+    // Our own signature, so the notice is genuine: its ticket is gone
+    // (account deleted or retention) and the notice must not come back as a
+    // new ticket.
+    return true;
+  }
   if (ticket?.source !== "form") {
     return false;
   }
@@ -260,6 +270,22 @@ const linkFormNotice = async (email: ReceivedEmail) => {
   return linked.length > 0;
 };
 
+// The ids among these whose tickets were deleted: the e-mail is still in
+// Resend, but it must not come back as a new ticket.
+const deletedEmailIds = async (ids: string[]) => {
+  if (!ids.length) {
+    return new Set<string>();
+  }
+  const hashes = new Map(ids.map((id) => [emailIdHash(id), id]));
+  const deleted = await db
+    .select({ hash: supportDeletedEmailsTable.resendEmailIdHash })
+    .from(supportDeletedEmailsTable)
+    .where(
+      inArray(supportDeletedEmailsTable.resendEmailIdHash, [...hashes.keys()]),
+    );
+  return new Set(deleted.map(({ hash }) => hashes.get(hash)!));
+};
+
 // The support address an e-mail was sent to, or the first recipient.
 const inboxOf = (email: ReceivedEmail) =>
   normalized(email.to.find((to) => isSupportAddress(to)) ?? email.to[0] ?? "");
@@ -267,7 +293,8 @@ const inboxOf = (email: ReceivedEmail) =>
 /**
  * Stores a received e-mail: as a new message of the ticket it answers, or as
  * a new ticket. A reply to a finalized ticket opens a new one that points
- * back to it. Returns null when the e-mail was already stored.
+ * back to it. Returns null when the e-mail was already stored, or its ticket
+ * was deleted.
  */
 export const importReceivedEmail = async (
   email: ReceivedEmail,
@@ -277,15 +304,15 @@ export const importReceivedEmail = async (
     where: eq(supportMessagesTable.resendEmailId, email.id),
     columns: { id: true },
   });
-  if (known || (await linkFormNotice(email))) {
+  if (
+    known ||
+    (await deletedEmailIds([email.id])).size > 0 ||
+    (await linkFormNotice(email))
+  ) {
     return null;
   }
 
-  // Where answers go (the Reply-To, when there is one)...
-  const sender = normalized(replyTarget(email));
-  // ...but who wrote is the From, which DMARC checks: anyone can put the
-  // customer in Reply-To.
-  const author = isHelpFormMessage(email) ? sender : normalized(email.from);
+  const customer = normalized(customerAddress(email));
   const fullBody = email.text?.trim() || htmlToText(email.html ?? "");
   const body =
     fullBody.length > MAX_BODY_LENGTH
@@ -299,12 +326,13 @@ export const importReceivedEmail = async (
     hadAttachments: (email.attachments?.length ?? 0) > 0,
     createdAt: receivedAt,
   };
-  const match = await findTicketFor(email, author);
-  // A forged From fails DMARC. Domains without a DMARC policy come as "gray"
-  // and mail received before Resend checked has no result: both are taken
-  // as they are.
-  const forged = email.authentication?.dmarc === "fail";
-  const previous = forged ? null : match;
+  const match = await findTicketFor(email, customer);
+  // Only a DMARC pass proves the From is who it says. A forged From fails it;
+  // domains without a DMARC policy ("gray") and mail received before Resend
+  // checked prove nothing. None of them may join a customer's ticket by
+  // copying its protocol.
+  const unverified = email.authentication?.dmarc !== "pass";
+  const previous = unverified ? null : match;
 
   let result: { ticket: Ticket; opened: boolean };
   try {
@@ -326,7 +354,7 @@ export const importReceivedEmail = async (
         tx,
         {
           subject: cleanSubject(email.subject),
-          customerEmail: sender,
+          customerEmail: customer,
           customerName: isHelpFormMessage(email) ? null : nameOf(email.from),
           inbox: inboxOf(email),
           source: "email",
@@ -341,11 +369,11 @@ export const importReceivedEmail = async (
           body: `Resposta ao protocolo ${protocolOf(previous.number)}, que já estava finalizado. Este novo atendimento continua a conversa.`,
           createdAt: receivedAt,
         });
-      } else if (forged && match) {
+      } else if (unverified && match) {
         await tx.insert(supportMessagesTable).values({
           ticketId: ticket.id,
           author: "system",
-          body: `Este e-mail diz responder ao protocolo ${protocolOf(match.number)}, mas o remetente não passou na verificação de autenticidade (DMARC). Por isso não foi juntado àquele atendimento: confirme com o cliente antes de agir.`,
+          body: `Este e-mail diz responder ao protocolo ${protocolOf(match.number)}, mas não foi possível confirmar o remetente (DMARC). Por isso não foi juntado àquele atendimento: confirme com o cliente antes de agir.`,
           createdAt: receivedAt,
         });
       }
@@ -363,8 +391,8 @@ export const importReceivedEmail = async (
     sendsAcknowledgements() &&
     isSupportTicket(result.ticket) &&
     isEmailConfigured() &&
-    !isOwnAddress(sender) &&
-    shouldAcknowledge(email, sender, now)
+    !isOwnAddress(customer) &&
+    shouldAcknowledge(email, customer, now)
   ) {
     await acknowledge(
       result.ticket,
@@ -440,7 +468,12 @@ export const syncInbox = async ({ pauseMs = PAUSE_MS } = {}) => {
           .from(supportMessagesTable)
           .where(inArray(supportMessagesTable.resendEmailId, ids))
       : [];
-    const storedIds = new Set(stored.map(({ id }) => id));
+    // A deleted ticket's e-mail counts as stored too: it is not imported
+    // again, and the scan can stop at it.
+    const storedIds = new Set([
+      ...stored.map(({ id }) => id),
+      ...(await deletedEmailIds(ids)),
+    ]);
     unseen.push(...result.data.filter(({ id }) => !storedIds.has(id)));
     // Newest first: once a stored e-mail shows up, the older ones are in.
     if (storedIds.size > 0 || !result.has_more) {
@@ -552,16 +585,43 @@ export const ticketIdOfEmail = async (resendEmailId: string) => {
   return message?.ticketId ?? null;
 };
 
-export const deleteTicketsOf = (tx: Executor, email: string) =>
-  tx
-    .delete(supportTicketsTable)
-    .where(eq(supportTicketsTable.customerEmail, normalized(email)));
+// Records the received e-mails of the tickets matching the condition as
+// deleted, before the tickets (and their messages) go.
+const rememberDeletedEmails = async (tx: Executor, tickets: SQL) => {
+  const rows = await tx
+    .select({ id: supportMessagesTable.resendEmailId })
+    .from(supportMessagesTable)
+    .innerJoin(
+      supportTicketsTable,
+      eq(supportTicketsTable.id, supportMessagesTable.ticketId),
+    )
+    .where(and(isNotNull(supportMessagesTable.resendEmailId), tickets));
+  // Hashed here, with the same function the import compares with.
+  const hashes = new Set(rows.map(({ id }) => emailIdHash(id!)));
+  if (!hashes.size) {
+    return;
+  }
+  await tx
+    .insert(supportDeletedEmailsTable)
+    .values([...hashes].map((resendEmailIdHash) => ({ resendEmailIdHash })))
+    .onConflictDoNothing();
+};
+
+export const deleteTicketsOf = async (tx: Executor, email: string) => {
+  const ofCustomer = eq(supportTicketsTable.customerEmail, normalized(email));
+  await rememberDeletedEmails(tx, ofCustomer);
+  await tx.delete(supportTicketsTable).where(ofCustomer);
+};
 
 export const deleteExpiredTickets = (cutoff: Date) =>
-  db
-    .delete(supportTicketsTable)
-    .where(lt(supportTicketsTable.lastMessageAt, cutoff))
-    .returning({ id: supportTicketsTable.id });
+  db.transaction(async (tx) => {
+    const expired = lt(supportTicketsTable.lastMessageAt, cutoff);
+    await rememberDeletedEmails(tx, expired);
+    return tx
+      .delete(supportTicketsTable)
+      .where(expired)
+      .returning({ id: supportTicketsTable.id });
+  });
 
 // The customer's tickets, for the data export: their messages and the
 // team's answers, without who on the team wrote them.

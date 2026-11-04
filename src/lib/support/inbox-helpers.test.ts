@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   addressOf,
+  customerAddress,
   htmlToText,
   isForSupport,
   isHelpFormMessage,
@@ -23,6 +24,7 @@ const email = {
   html: null,
   text: "Linha 1\nLinha 2",
   message_id: "<abc@mail>",
+  authentication: { dmarc: "pass" },
 };
 
 describe("inbox helpers", () => {
@@ -50,6 +52,37 @@ describe("inbox helpers", () => {
         FORM_SENDER,
       ),
     ).toBe(true);
+  });
+
+  it("doesn't take an e-mail without an authentication result as a form message", () => {
+    expect(
+      isHelpFormMessage({ ...email, authentication: null }, FORM_SENDER),
+    ).toBe(false);
+    expect(
+      isHelpFormMessage({ ...email, authentication: undefined }, FORM_SENDER),
+    ).toBe(false);
+    expect(
+      isHelpFormMessage(
+        { ...email, authentication: { dmarc: "gray" } },
+        FORM_SENDER,
+      ),
+    ).toBe(false);
+  });
+
+  it("takes the Reply-To as the customer only for the help form's notice", () => {
+    expect(customerAddress(email)).toBe("ana@clinica.com");
+
+    const direct = {
+      ...email,
+      from: "Bruno <bruno@x.com>",
+      subject: "Dúvida",
+      reply_to: ["golpe@z.com"],
+    };
+    expect(customerAddress(direct)).toBe("bruno@x.com");
+    // A notice that can't be vouched for is just an e-mail from Avelliq.
+    expect(customerAddress({ ...email, authentication: null })).toBe(
+      "nao-responda@mail.avelliq.com.br",
+    );
   });
 
   it("tells mail for the support addresses from the rest of the domain", () => {

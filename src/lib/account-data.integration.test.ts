@@ -16,7 +16,10 @@ describe.skipIf(!databaseUrl)("account data against Postgres", () => {
     return { db, schema, ...accountData, withUserLock };
   };
 
-  const seedUserWithClinic = async (clinicName: string) => {
+  const seedUserWithClinic = async (
+    clinicName: string,
+    { emailVerified = true } = {},
+  ) => {
     const { db, schema } = await load();
     const userId = randomUUID();
     const clinicId = randomUUID();
@@ -25,7 +28,7 @@ describe.skipIf(!databaseUrl)("account data against Postgres", () => {
       id: userId,
       name: "Dona da clínica",
       email: `${userId}@exemplo.com`,
-      emailVerified: true,
+      emailVerified,
       createdAt: now,
       updatedAt: now,
     });
@@ -110,6 +113,51 @@ describe.skipIf(!databaseUrl)("account data against Postgres", () => {
       ),
     ]);
     expect(left).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it("exports and deletes support tickets only for a confirmed e-mail", async () => {
+    const { collectAccountData, deleteAccountData, withUserLock } =
+      await load();
+    const { importReceivedEmail, ticketsOf } = await import(
+      "./support/tickets"
+    );
+    const ticketFor = (userId: string) =>
+      importReceivedEmail({
+        id: randomUUID(),
+        from: `${userId}@exemplo.com`,
+        to: ["sac@mail.avelliq.com.br"],
+        subject: "Dúvida",
+        created_at: new Date().toISOString(),
+        html: null,
+        text: "Oi",
+        message_id: `<${randomUUID()}@x.com>`,
+        headers: {},
+        authentication: { dmarc: "pass" },
+      });
+    const confirmed = await seedUserWithClinic("Confirmada");
+    const unconfirmed = await seedUserWithClinic("Não confirmada", {
+      emailVerified: false,
+    });
+    await ticketFor(confirmed.userId);
+    await ticketFor(unconfirmed.userId);
+
+    expect(
+      (await collectAccountData(confirmed.userId))?.supportTickets,
+    ).toHaveLength(1);
+    expect(
+      (await collectAccountData(unconfirmed.userId))?.supportTickets,
+    ).toHaveLength(0);
+
+    await withUserLock(confirmed.userId, (tx) =>
+      deleteAccountData(tx, confirmed.userId),
+    );
+    await withUserLock(unconfirmed.userId, (tx) =>
+      deleteAccountData(tx, unconfirmed.userId),
+    );
+    expect(await ticketsOf(`${confirmed.userId}@exemplo.com`)).toHaveLength(0);
+    expect(await ticketsOf(`${unconfirmed.userId}@exemplo.com`)).toHaveLength(
+      1,
+    );
   });
 
   it("keeps a clinic that another user also belongs to", async () => {

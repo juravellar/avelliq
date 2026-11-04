@@ -33,7 +33,9 @@ export const collectAccountData = async (userId: string) => {
     with: { clinic: true },
   });
   const clinicIds = memberships.map(({ clinicId }) => clinicId);
-  const supportTickets = await ticketsOf(user.email);
+  // Tickets are found by e-mail, which only the account's owner may read:
+  // an unconfirmed address could belong to someone else.
+  const supportTickets = user.emailVerified ? await ticketsOf(user.email) : [];
   const [doctors, patients, appointments] = clinicIds.length
     ? await Promise.all([
         db.query.doctorsTable.findMany({
@@ -108,9 +110,11 @@ export const cancelBillableSubscriptions = async (
 export const deleteAccountData = async (tx: Transaction, userId: string) => {
   const user = await tx.query.usersTable.findFirst({
     where: eq(usersTable.id, userId),
-    columns: { email: true },
+    columns: { email: true, emailVerified: true },
   });
-  if (user) {
+  // The same rule as the export: an unconfirmed address's tickets may be
+  // someone else's.
+  if (user?.emailVerified) {
     await deleteTicketsOf(tx, user.email);
   }
   const memberships = await tx.query.usersToClinicsTable.findMany({

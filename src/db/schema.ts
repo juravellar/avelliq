@@ -427,6 +427,16 @@ export const supportMessagesTable = pgTable(
   ],
 );
 
+// Received e-mails whose tickets were deleted (account deletion, retention).
+// They still exist in Resend, and without this the next inbox sync would
+// import them again as new tickets. Only a SHA-256 of the Resend id is kept,
+// so no personal data stays behind; never purged, as Resend may hold the mail
+// for longer than any cutoff we could pick.
+export const supportDeletedEmailsTable = pgTable("support_deleted_emails", {
+  resendEmailIdHash: text("resend_email_id_hash").primaryKey(),
+  deletedAt: timestamp("deleted_at").defaultNow().notNull(),
+});
+
 export const supportTicketsTableRelations = relations(
   supportTicketsTable,
   ({ many, one }) => ({
