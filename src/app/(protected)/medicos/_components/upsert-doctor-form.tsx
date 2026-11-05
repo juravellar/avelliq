@@ -87,6 +87,12 @@ const formSchema = z
 
 type FormValues = z.input<typeof formSchema>;
 
+// CRM and RQE take digits only, up to what the schema accepts: a pasted
+// "123.456" or "CRM 123456" keeps just the number. No maxLength on the
+// inputs: it would cut the pasted text before the letters are dropped.
+const digitsUpTo = (value: string, max: number) =>
+  value.replace(/\D/g, "").slice(0, max);
+
 const WEEK_DAYS = [
   "Domingo",
   "Segunda",
@@ -404,8 +410,10 @@ const UpsertDoctorForm = ({
                     <FormControl>
                       <Input
                         {...field}
+                        onChange={(event) =>
+                          field.onChange(digitsUpTo(event.target.value, 7))
+                        }
                         inputMode="numeric"
-                        maxLength={10}
                         placeholder="Número"
                       />
                     </FormControl>
@@ -447,8 +455,10 @@ const UpsertDoctorForm = ({
                   <FormControl>
                     <Input
                       {...field}
+                      onChange={(event) =>
+                        field.onChange(digitsUpTo(event.target.value, 10))
+                      }
                       inputMode="numeric"
-                      maxLength={12}
                       placeholder="Opcional"
                     />
                   </FormControl>
