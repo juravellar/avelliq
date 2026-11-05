@@ -1,11 +1,101 @@
 import { z } from "zod";
 
+import { BRAZILIAN_STATES, onlyDigits } from "@/helpers/cpf";
 import { priceInCentsSchema } from "@/helpers/currency";
+import { isValidPhone } from "@/helpers/phone";
 
 // Shared with the client form, whose fields have a different shape.
 export const timeRangeRule = {
   isValid: (from: string, to: string) => from < to,
   message: "O horário de término deve ser posterior ao horário de início.",
+};
+
+export const MAX_HEALTH_INSURANCES = 30;
+
+// The most common plans, offered as suggestions; any other can be typed.
+export const COMMON_HEALTH_INSURANCES = [
+  "Amil",
+  "Bradesco Saúde",
+  "Cassi",
+  "Geap",
+  "Golden Cross",
+  "Hapvida",
+  "NotreDame Intermédica",
+  "Porto Saúde",
+  "Prevent Senior",
+  "SulAmérica",
+  "Unimed",
+];
+
+// The professional and contact details, all optional so doctors saved before
+// they existed stay valid. Shared by the form and the server action.
+export const doctorDetailsSchema = z.object({
+  crmNumber: z
+    .string()
+    .optional()
+    .refine((value) => !value || /^\d{4,7}$/.test(onlyDigits(value)), {
+      message: "CRM inválido: use de 4 a 7 números.",
+    }),
+  crmState: z
+    .string()
+    .optional()
+    .refine(
+      (value) =>
+        !value || (BRAZILIAN_STATES as readonly string[]).includes(value),
+      { message: "UF inválida." },
+    ),
+  rqe: z
+    .string()
+    .optional()
+    .refine((value) => !value || /^\d{1,10}$/.test(onlyDigits(value)), {
+      message: "RQE inválido.",
+    }),
+  phoneNumber: z
+    .string()
+    .optional()
+    .refine((value) => !value || isValidPhone(value), {
+      message: "Telefone inválido.",
+    }),
+  email: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || z.string().email().safeParse(value).success, {
+      message: "E-mail inválido.",
+    }),
+  acceptsPrivate: z.boolean().default(true),
+  healthInsurances: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1)
+        .max(60, { message: "Use até 60 caracteres por convênio." }),
+    )
+    .max(MAX_HEALTH_INSURANCES, {
+      message: `Informe até ${MAX_HEALTH_INSURANCES} convênios.`,
+    })
+    .default([]),
+});
+
+type DoctorDetails = z.output<typeof doctorDetailsSchema>;
+
+// Rules across fields, for the form and the action alike.
+export const doctorDetailsProblems = (details: DoctorDetails) => {
+  const problems: { path: keyof DoctorDetails; message: string }[] = [];
+  if (Boolean(details.crmNumber) !== Boolean(details.crmState)) {
+    problems.push({
+      path: details.crmNumber ? "crmState" : "crmNumber",
+      message: "Informe o número e a UF do CRM.",
+    });
+  }
+  if (!details.acceptsPrivate && details.healthInsurances.length === 0) {
+    problems.push({
+      path: "healthInsurances",
+      message: "Informe os convênios aceitos ou marque que atende particular.",
+    });
+  }
+  return problems;
 };
 
 export const upsertDoctorSchema = z
@@ -29,10 +119,48 @@ export const upsertDoctorSchema = z
       message: "Hora de término é obrigatória.",
     }),
   })
-  .refine(
-    (data) =>
-      timeRangeRule.isValid(data.availableFromTime, data.availableToTime),
-    { message: timeRangeRule.message, path: ["availableToTime"] },
-  );
+  .merge(doctorDetailsSchema)
+  .superRefine((data, ctx) => {
+    if (!timeRangeRule.isValid(data.availableFromTime, data.availableToTime)) {
+      ctx.addIssue({
+        code: "custom",
+        message: timeRangeRule.message,
+        path: ["availableToTime"],
+      });
+    }
+    for (const problem of doctorDetailsProblems(data)) {
+      ctx.addIssue({
+        code: "custom",
+        message: problem.message,
+        path: [problem.path],
+      });
+    }
+  });
 
 export type UpsertDoctorSchema = z.infer<typeof upsertDoctorSchema>;
+
+const orNull = (value: string | undefined) => value?.trim() || null;
+const digitsOrNull = (value: string | undefined) =>
+  value ? onlyDigits(value) || null : null;
+
+// The columns to store: empty fields become null, CRM, RQE and phone keep
+// only their digits, and repeated plans are dropped.
+export const doctorDetailColumns = (details: DoctorDetails) => ({
+  crmNumber: digitsOrNull(details.crmNumber),
+  crmState: orNull(details.crmState),
+  rqe: digitsOrNull(details.rqe),
+  phoneNumber: digitsOrNull(details.phoneNumber),
+  email: orNull(details.email)?.toLowerCase() ?? null,
+  acceptsPrivate: details.acceptsPrivate,
+  healthInsurances: details.healthInsurances
+    .map((name) => name.trim())
+    .filter(
+      (name, index, names) =>
+        name &&
+        names.findIndex(
+          (other) =>
+            other.toLocaleLowerCase("pt-BR") ===
+            name.toLocaleLowerCase("pt-BR"),
+        ) === index,
+    ),
+});

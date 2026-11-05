@@ -178,25 +178,49 @@ export const clinicsTableRelations = relations(clinicsTable, ({ many }) => ({
   usersToClinics: many(usersToClinicsTable),
 }));
 
-export const doctorsTable = pgTable("doctors", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  clinicId: uuid("clinic_id")
-    .notNull()
-    .references(() => clinicsTable.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  avatarImageUrl: text("avatar_image_url"),
-  // 1 - Monday, 2 - Tuesday, 3 - Wednesday, 4 - Thursday, 5 - Friday, 6 - Saturday, 0 - Sunday
-  availableFromWeekDay: integer("available_from_week_day").notNull(),
-  availableToWeekDay: integer("available_to_week_day").notNull(),
-  availableFromTime: time("available_from_time").notNull(),
-  availableToTime: time("available_to_time").notNull(),
-  specialty: text("specialty").notNull(),
-  appointmentPriceInCents: integer("appointment_price_in_cents").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const doctorsTable = pgTable(
+  "doctors",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clinicId: uuid("clinic_id")
+      .notNull()
+      .references(() => clinicsTable.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    avatarImageUrl: text("avatar_image_url"),
+    // Professional registration, all optional: doctors saved before these
+    // fields existed stay valid. CRM digits only, with its state (UF).
+    crmNumber: text("crm_number"),
+    crmState: text("crm_state"),
+    // Registro de Qualificação de Especialista.
+    rqe: text("rqe"),
+    phoneNumber: text("phone_number"),
+    email: text("email"),
+    // Whether the doctor sees private patients, and the health insurance
+    // plans (convênios) accepted, as typed by the clinic.
+    acceptsPrivate: boolean("accepts_private").notNull().default(true),
+    healthInsurances: text("health_insurances")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    // 1 - Monday, 2 - Tuesday, 3 - Wednesday, 4 - Thursday, 5 - Friday, 6 - Saturday, 0 - Sunday
+    availableFromWeekDay: integer("available_from_week_day").notNull(),
+    availableToWeekDay: integer("available_to_week_day").notNull(),
+    availableFromTime: time("available_from_time").notNull(),
+    availableToTime: time("available_to_time").notNull(),
+    specialty: text("specialty").notNull(),
+    appointmentPriceInCents: integer("appointment_price_in_cents").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    // A CRM identifies one doctor: no two doctors of a clinic share it.
+    uniqueIndex("doctors_clinic_crm_unique")
+      .on(table.clinicId, table.crmState, table.crmNumber)
+      .where(sql`${table.crmNumber} is not null`),
+  ],
+);
 
 export const doctorsTableRelations = relations(
   doctorsTable,
