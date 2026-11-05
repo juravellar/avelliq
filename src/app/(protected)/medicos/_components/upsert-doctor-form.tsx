@@ -8,9 +8,9 @@ import { z } from "zod";
 
 import { upsertDoctor } from "@/actions/upsert-doctor";
 import {
-  COMMON_HEALTH_INSURANCES,
   doctorDetailsProblems,
   doctorDetailsSchema,
+  healthInsuranceSuggestions,
   MAX_HEALTH_INSURANCES,
   timeRangeRule,
 } from "@/actions/upsert-doctor/schema";
@@ -146,13 +146,15 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 // The plans the doctor accepts, as removable chips. Enter or comma adds the
-// typed name; common plans are suggested as one types.
+// typed name; plans are suggested as one types, the CRM state's first.
 function HealthInsuranceInput({
   value,
   onChange,
+  state,
 }: {
   value: string[];
   onChange: (value: string[]) => void;
+  state?: string;
 }) {
   const [draft, setDraft] = useState("");
   const listId = useId();
@@ -196,11 +198,11 @@ function HealthInsuranceInput({
           Adicionar
         </Button>
         <datalist id={listId}>
-          {COMMON_HEALTH_INSURANCES.filter((name) => !value.includes(name)).map(
-            (name) => (
+          {healthInsuranceSuggestions(state)
+            .filter((name) => !value.includes(name))
+            .map((name) => (
               <option key={name} value={name} />
-            ),
-          )}
+            ))}
         </datalist>
       </div>
       {value.length > 0 && (
@@ -537,6 +539,7 @@ const UpsertDoctorForm = ({
                   <HealthInsuranceInput
                     value={field.value ?? []}
                     onChange={field.onChange}
+                    state={form.watch("crmState")}
                   />
                   <FormMessage />
                 </FormItem>
