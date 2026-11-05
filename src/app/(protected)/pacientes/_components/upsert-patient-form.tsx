@@ -9,7 +9,10 @@ import { toast } from "sonner";
 import type { z } from "zod";
 
 import { upsertPatient } from "@/actions/upsert-patient";
-import { patientFormSchema } from "@/actions/upsert-patient/schema";
+import {
+  PATIENT_LIMITS,
+  patientFormSchema,
+} from "@/actions/upsert-patient/schema";
 import { Button } from "@/components/ui/button";
 import {
   DialogContent,
@@ -113,6 +116,9 @@ function TextField({
               placeholder={placeholder}
               {...field}
               value={field.value ?? ""}
+              maxLength={
+                PATIENT_LIMITS[name as keyof typeof PATIENT_LIMITS] ?? undefined
+              }
             />
           </FormControl>
           <FormMessage />
@@ -358,6 +364,7 @@ const UpsertPatientForm = ({
                     <Input
                       type="email"
                       placeholder="exemplo@email.com"
+                      maxLength={PATIENT_LIMITS.email}
                       {...field}
                     />
                   </FormControl>
@@ -465,6 +472,7 @@ const UpsertPatientForm = ({
                   <Textarea
                     rows={3}
                     placeholder="Ex.: prefere ser contatado por WhatsApp"
+                    maxLength={PATIENT_LIMITS.notes}
                     {...field}
                     value={field.value ?? ""}
                   />

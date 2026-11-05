@@ -517,6 +517,7 @@ function HumanForm({
               <input
                 {...form.register("name")}
                 autoComplete="name"
+                maxLength={120}
                 className={field}
               />
               {errors.name && (
@@ -531,6 +532,7 @@ function HumanForm({
                 {...form.register("email")}
                 type="email"
                 autoComplete="email"
+                maxLength={254}
                 className={field}
               />
               {errors.email && (

@@ -5,12 +5,14 @@ export const registerSchema = z
     username: z
       .string()
       .trim()
-      .min(1, { message: "Nome de usuário é obrigatório" }),
+      .min(1, { message: "Nome de usuário é obrigatório" })
+      .max(120, { message: "Use até 120 caracteres" }),
     email: z
       .string()
       .trim()
       .min(1, { message: "Email é obrigatório" })
-      .email({ message: "Email inválido" }),
+      .email({ message: "Email inválido" })
+      .max(254, { message: "Email muito longo" }),
     // Not trimmed: spaces are part of the password.
     password: z
       .string()

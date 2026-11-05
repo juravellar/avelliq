@@ -8,8 +8,10 @@ import { z } from "zod";
 
 import { upsertDoctor } from "@/actions/upsert-doctor";
 import {
+  DOCTOR_NAME_MAX,
   doctorDetailsProblems,
   doctorDetailsSchema,
+  EMAIL_MAX,
   healthInsuranceSuggestions,
   MAX_HEALTH_INSURANCES,
   timeRangeRule,
@@ -86,6 +88,12 @@ const formSchema = z
   });
 
 type FormValues = z.input<typeof formSchema>;
+
+// CRM and RQE take digits only, up to what the schema accepts: a pasted
+// "123.456" or "CRM 123456" keeps just the number. No maxLength on the
+// inputs: it would cut the pasted text before the letters are dropped.
+const digitsUpTo = (value: string, max: number) =>
+  value.replace(/\D/g, "").slice(0, max);
 
 const WEEK_DAYS = [
   "Domingo",
@@ -358,7 +366,7 @@ const UpsertDoctorForm = ({
                 <FormItem className="sm:col-span-2">
                   <FormLabel>Nome</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} maxLength={DOCTOR_NAME_MAX} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -404,8 +412,10 @@ const UpsertDoctorForm = ({
                     <FormControl>
                       <Input
                         {...field}
+                        onChange={(event) =>
+                          field.onChange(digitsUpTo(event.target.value, 7))
+                        }
                         inputMode="numeric"
-                        maxLength={10}
                         placeholder="Número"
                       />
                     </FormControl>
@@ -447,8 +457,10 @@ const UpsertDoctorForm = ({
                   <FormControl>
                     <Input
                       {...field}
+                      onChange={(event) =>
+                        field.onChange(digitsUpTo(event.target.value, 10))
+                      }
                       inputMode="numeric"
-                      maxLength={12}
                       placeholder="Opcional"
                     />
                   </FormControl>
@@ -485,7 +497,12 @@ const UpsertDoctorForm = ({
                 <FormItem>
                   <FormLabel>E-mail</FormLabel>
                   <FormControl>
-                    <Input {...field} type="email" autoComplete="off" />
+                    <Input
+                      {...field}
+                      type="email"
+                      autoComplete="off"
+                      maxLength={EMAIL_MAX}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
