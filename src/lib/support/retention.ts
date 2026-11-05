@@ -7,8 +7,9 @@ import {
   supportTicketsTable,
 } from "@/db/schema";
 
+import { emailIdHash } from "./email-id-hash";
 import { type Executor, normalized } from "./tickets";
-import { emailIdHash, protocolOf } from "./tickets-helpers";
+import { protocolOf } from "./tickets-helpers";
 
 // Tickets are kept for 2 years after their last message, as the privacy
 // policy states.

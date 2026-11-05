@@ -33,7 +33,7 @@ import {
   sessionsTable,
   supportTicketsTable,
 } from "@/db/schema";
-import { emailIdHash } from "@/lib/support/tickets-helpers";
+import { emailIdHash } from "@/lib/support/email-id-hash";
 
 import { GET } from "./route";
 

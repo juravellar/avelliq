@@ -2,7 +2,6 @@
 
 import { and, eq, notInArray } from "drizzle-orm";
 import { headers } from "next/headers";
-import { z } from "zod";
 
 import { db } from "@/db";
 import { supportMessagesTable, supportTicketsTable } from "@/db/schema";
@@ -23,31 +22,18 @@ import {
   protocolOf,
   quoteMessage,
   STATUS_NAMES,
-  SUPPORT_STATUSES,
   ticketSubject,
   ticketThreadHeaders,
   updateProblem,
 } from "@/lib/support/tickets-helpers";
 
+import { updateSupportTicketSchema } from "./schema";
+
 // The team's update to a ticket: a message to the customer, a new status, or
 // both. Recipient, subject and thread come from the stored ticket, not from
 // the browser.
 export const updateSupportTicket = actionClient
-  .schema(
-    z.object({
-      ticketId: z.string().uuid(),
-      status: z.enum(SUPPORT_STATUSES),
-      message: z
-        .string()
-        .trim()
-        .max(10_000, { message: "Use até 10.000 caracteres." })
-        // Empty is a status-only update; otherwise the same 2-character
-        // minimum as the customer's message.
-        .refine((value) => value.length !== 1, {
-          message: "Escreva a mensagem.",
-        }),
-    }),
-  )
+  .schema(updateSupportTicketSchema)
   .action(async ({ parsedInput: { ticketId, status, message } }) => {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!canAnswerSupport(session?.user)) {

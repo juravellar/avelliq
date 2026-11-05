@@ -16,6 +16,7 @@ import {
   ticketUrlFor,
 } from "@/lib/email";
 
+import { emailIdHash } from "./email-id-hash";
 import { getReceivedEmail, InboxError, listReceivedEmails } from "./inbox";
 import {
   customerAddress,
@@ -35,7 +36,6 @@ import {
 } from "./tickets";
 import {
   cleanSubject,
-  emailIdHash,
   isAutomatedEmail,
   isFinalStatus,
   parseProtocol,

@@ -1,8 +1,6 @@
 // Rules for support tickets, kept apart from the database so they can be
 // tested.
 
-import { createHash } from "node:crypto";
-
 import type { ReceivedEmail } from "./inbox-helpers";
 
 export const SUPPORT_STATUSES = [
@@ -25,12 +23,6 @@ export const STATUS_NAMES: Record<SupportStatus, string> = {
 export const FINAL_STATUSES: SupportStatus[] = ["concluded", "archived"];
 export const isFinalStatus = (status: SupportStatus) =>
   FINAL_STATUSES.includes(status);
-
-// What is kept of a deleted ticket's received e-mail ids: enough to skip the
-// e-mail on the next import, not to find it. Both recording and checking use
-// this function (sha256 of the UTF-8 id, in hex).
-export const emailIdHash = (resendEmailId: string) =>
-  createHash("sha256").update(resendEmailId, "utf8").digest("hex");
 
 export const protocolOf = (number: number) =>
   `AV-${String(number).padStart(6, "0")}`;

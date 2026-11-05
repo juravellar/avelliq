@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { emailIdHash } from "./email-id-hash";
 import type { ReceivedEmail } from "./inbox-helpers";
 import {
   cleanSubject,
-  emailIdHash,
   isAutomatedEmail,
   isNewForTeam,
   parseProtocol,
