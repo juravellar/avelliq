@@ -1,12 +1,19 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { X } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
-import { useEffect } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { upsertDoctor } from "@/actions/upsert-doctor";
-import { timeRangeRule } from "@/actions/upsert-doctor/schema";
+import {
+  COMMON_HEALTH_INSURANCES,
+  doctorDetailsProblems,
+  doctorDetailsSchema,
+  MAX_HEALTH_INSURANCES,
+  timeRangeRule,
+} from "@/actions/upsert-doctor/schema";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import {
@@ -25,6 +32,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   Select,
   SelectContent,
@@ -35,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { doctorsTable } from "@/db/schema";
+import { BRAZILIAN_STATES } from "@/helpers/cpf";
 import { priceInReaisSchema, reaisToCents } from "@/helpers/currency";
 import { actionErrorMessage } from "@/lib/action-errors";
 
@@ -58,11 +67,165 @@ const formSchema = z
       message: "Hora de término é obrigatória.",
     }),
   })
-  .refine(
-    (data) =>
-      timeRangeRule.isValid(data.availableFromTime, data.availableToTime),
-    { message: timeRangeRule.message, path: ["availableToTime"] },
+  .merge(doctorDetailsSchema.required({ acceptsPrivate: true }))
+  .superRefine((data, ctx) => {
+    if (!timeRangeRule.isValid(data.availableFromTime, data.availableToTime)) {
+      ctx.addIssue({
+        code: "custom",
+        message: timeRangeRule.message,
+        path: ["availableToTime"],
+      });
+    }
+    for (const problem of doctorDetailsProblems(data)) {
+      ctx.addIssue({
+        code: "custom",
+        message: problem.message,
+        path: [problem.path],
+      });
+    }
+  });
+
+type FormValues = z.input<typeof formSchema>;
+
+const WEEK_DAYS = [
+  "Domingo",
+  "Segunda",
+  "Terça",
+  "Quarta",
+  "Quinta",
+  "Sexta",
+  "Sábado",
+];
+
+// Every half hour from 05:00 to 23:30, grouped as the day goes.
+const TIME_GROUPS = [
+  { label: "Manhã", from: 5, to: 12 },
+  { label: "Tarde", from: 13, to: 18 },
+  { label: "Noite", from: 19, to: 23 },
+].map(({ label, from, to }) => ({
+  label,
+  times: Array.from(
+    { length: to - from + 1 },
+    (_, index) => from + index,
+  ).flatMap((hour) => [
+    `${hour}`.padStart(2, "0") + ":00",
+    `${hour}`.padStart(2, "0") + ":30",
+  ]),
+}));
+
+const defaultsFor = (
+  doctor?: typeof doctorsTable.$inferSelect,
+): FormValues => ({
+  name: doctor?.name ?? "",
+  specialty: doctor?.specialty ?? "",
+  appointmentPrice: doctor?.appointmentPriceInCents
+    ? doctor.appointmentPriceInCents / 100
+    : 0,
+  availableFromWeekDay: doctor?.availableFromWeekDay?.toString() ?? "1",
+  availableToWeekDay: doctor?.availableToWeekDay?.toString() ?? "5",
+  availableFromTime: doctor?.availableFromTime ?? "",
+  availableToTime: doctor?.availableToTime ?? "",
+  crmNumber: doctor?.crmNumber ?? "",
+  crmState: doctor?.crmState ?? "",
+  rqe: doctor?.rqe ?? "",
+  phoneNumber: doctor?.phoneNumber ?? "",
+  email: doctor?.email ?? "",
+  acceptsPrivate: doctor?.acceptsPrivate ?? true,
+  healthInsurances: doctor?.healthInsurances ?? [],
+});
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-muted-foreground mb-2 text-xs font-semibold tracking-wide uppercase">
+        {title}
+      </legend>
+      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
+    </fieldset>
   );
+}
+
+// The plans the doctor accepts, as removable chips. Enter or comma adds the
+// typed name; common plans are suggested as one types.
+function HealthInsuranceInput({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const listId = useId();
+  const add = () => {
+    const name = draft.trim().replace(/,$/, "").trim();
+    setDraft("");
+    if (
+      name &&
+      value.length < MAX_HEALTH_INSURANCES &&
+      !value.some((item) => item.toLowerCase() === name.toLowerCase())
+    ) {
+      onChange([...value, name]);
+    }
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={draft}
+          list={listId}
+          maxLength={60}
+          placeholder="Ex.: Unimed"
+          aria-label="Adicionar convênio"
+          onChange={(event) => {
+            const next = event.target.value;
+            if (next.endsWith(",")) {
+              setDraft(next);
+              setTimeout(add);
+              return;
+            }
+            setDraft(next);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+        />
+        <Button type="button" variant="outline" onClick={add}>
+          Adicionar
+        </Button>
+        <datalist id={listId}>
+          {COMMON_HEALTH_INSURANCES.filter((name) => !value.includes(name)).map(
+            (name) => (
+              <option key={name} value={name} />
+            ),
+          )}
+        </datalist>
+      </div>
+      {value.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Convênios aceitos">
+          {value.map((name) => (
+            <li
+              key={name}
+              className="bg-muted flex items-center gap-1 rounded-full py-0.5 pr-1 pl-2.5 text-xs"
+            >
+              {name}
+              <button
+                type="button"
+                onClick={() => onChange(value.filter((item) => item !== name))}
+                aria-label={`Remover ${name}`}
+                className="hover:bg-background rounded-full p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 interface UpsertDoctorFormProps {
   isOpen: boolean;
@@ -75,35 +238,15 @@ const UpsertDoctorForm = ({
   onSuccess,
   isOpen,
 }: UpsertDoctorFormProps) => {
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     shouldUnregister: true,
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: doctor?.name ?? "",
-      specialty: doctor?.specialty ?? "",
-      appointmentPrice: doctor?.appointmentPriceInCents
-        ? doctor.appointmentPriceInCents / 100
-        : 0,
-      availableFromWeekDay: doctor?.availableFromWeekDay?.toString() ?? "1",
-      availableToWeekDay: doctor?.availableToWeekDay?.toString() ?? "5",
-      availableFromTime: doctor?.availableFromTime ?? "",
-      availableToTime: doctor?.availableToTime ?? "",
-    },
+    defaultValues: defaultsFor(doctor),
   });
 
   useEffect(() => {
     if (isOpen) {
-      form.reset({
-        name: doctor?.name ?? "",
-        specialty: doctor?.specialty ?? "",
-        appointmentPrice: doctor?.appointmentPriceInCents
-          ? doctor.appointmentPriceInCents / 100
-          : 0,
-        availableFromWeekDay: doctor?.availableFromWeekDay?.toString() ?? "1",
-        availableToWeekDay: doctor?.availableToWeekDay?.toString() ?? "5",
-        availableFromTime: doctor?.availableFromTime ?? "",
-        availableToTime: doctor?.availableToTime ?? "",
-      });
+      form.reset(defaultsFor(doctor));
     }
   }, [isOpen, form, doctor]);
 
@@ -119,18 +262,82 @@ const UpsertDoctorForm = ({
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = (values: FormValues) => {
+    const { appointmentPrice, ...rest } = values;
     upsertDoctorAction.execute({
-      ...values,
+      ...rest,
       id: doctor?.id,
       availableFromWeekDay: parseInt(values.availableFromWeekDay),
       availableToWeekDay: parseInt(values.availableToWeekDay),
-      appointmentPriceInCents: reaisToCents(values.appointmentPrice),
+      appointmentPriceInCents: reaisToCents(Number(appointmentPrice)),
     });
   };
 
+  const daySelect = (name: "availableFromWeekDay" | "availableToWeekDay") => (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>
+            {name === "availableFromWeekDay" ? "Do dia" : "Até o dia"}
+          </FormLabel>
+          <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <FormControl>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione um dia" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              {WEEK_DAYS.map((day, index) => (
+                <SelectItem key={day} value={String(index)}>
+                  {day}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
+  const timeSelect = (name: "availableFromTime" | "availableToTime") => (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>
+            {name === "availableFromTime" ? "Das" : "Até as"}
+          </FormLabel>
+          <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <FormControl>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione um horário" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              {TIME_GROUPS.map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.times.map((time) => (
+                    <SelectItem key={time} value={`${time}:00`}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
   return (
-    <DialogContent>
+    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
         <DialogTitle>{doctor ? doctor.name : "Adicionar médico"}</DialogTitle>
         <DialogDescription>
@@ -140,262 +347,210 @@ const UpsertDoctorForm = ({
         </DialogDescription>
       </DialogHeader>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nome</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="specialty"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Especialidade</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <Section title="Dados profissionais">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Nome</FormLabel>
                   <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione uma especialidade" />
-                    </SelectTrigger>
+                    <Input {...field} />
                   </FormControl>
-                  <SelectContent>
-                    {medicalSpecialties.map((specialty) => (
-                      <SelectItem key={specialty.value} value={specialty.value}>
-                        {specialty.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="appointmentPrice"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Preço da consulta</FormLabel>
-                <FormControl>
-                  <CurrencyInput
-                    value={field.value}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="specialty"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Especialidade</FormLabel>
+                  <Select
                     onValueChange={field.onChange}
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecione uma especialidade" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {medicalSpecialties.map((specialty) => (
+                        <SelectItem
+                          key={specialty.value}
+                          value={specialty.value}
+                        >
+                          {specialty.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid grid-cols-[1fr_6rem] gap-3">
+              <FormField
+                control={form.control}
+                name="crmNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CRM</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        inputMode="numeric"
+                        maxLength={10}
+                        placeholder="Número"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="crmState"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>UF</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="UF" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {BRAZILIAN_STATES.map((state) => (
+                          <SelectItem key={state} value={state}>
+                            {state}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="rqe"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>RQE (especialista)</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      inputMode="numeric"
+                      maxLength={12}
+                      placeholder="Opcional"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Section>
+
+          <Section title="Contato">
+            <FormField
+              control={form.control}
+              name="phoneNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Telefone</FormLabel>
+                  <FormControl>
+                    <PhoneInput
+                      value={field.value ?? ""}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>E-mail</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="email" autoComplete="off" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Section>
+
+          <Section title="Atendimento">
+            <FormField
+              control={form.control}
+              name="appointmentPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Preço da consulta particular</FormLabel>
+                  <FormControl>
+                    <CurrencyInput
+                      value={Number(field.value)}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="acceptsPrivate"
+              render={({ field }) => (
+                <FormItem className="flex items-end">
+                  <label className="flex h-9 cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={(event) => field.onChange(event.target.checked)}
+                      className="accent-primary h-4 w-4"
+                    />
+                    Atende particular
+                  </label>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="healthInsurances"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Convênios aceitos</FormLabel>
+                  <HealthInsuranceInput
+                    value={field.value ?? []}
+                    onChange={field.onChange}
                   />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="availableFromWeekDay"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Dia inicial de disponibilidade</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um dia" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="0">Domingo</SelectItem>
-                    <SelectItem value="1">Segunda</SelectItem>
-                    <SelectItem value="2">Terça</SelectItem>
-                    <SelectItem value="3">Quarta</SelectItem>
-                    <SelectItem value="4">Quinta</SelectItem>
-                    <SelectItem value="5">Sexta</SelectItem>
-                    <SelectItem value="6">Sábado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="availableToWeekDay"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Dia final de disponibilidade</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value?.toString()}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um dia" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="0">Domingo</SelectItem>
-                    <SelectItem value="1">Segunda</SelectItem>
-                    <SelectItem value="2">Terça</SelectItem>
-                    <SelectItem value="3">Quarta</SelectItem>
-                    <SelectItem value="4">Quinta</SelectItem>
-                    <SelectItem value="5">Sexta</SelectItem>
-                    <SelectItem value="6">Sábado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="availableFromTime"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Horário inicial de disponibilidade</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um horário" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Manhã</SelectLabel>
-                      <SelectItem value="05:00:00">05:00</SelectItem>
-                      <SelectItem value="05:30:00">05:30</SelectItem>
-                      <SelectItem value="06:00:00">06:00</SelectItem>
-                      <SelectItem value="06:30:00">06:30</SelectItem>
-                      <SelectItem value="07:00:00">07:00</SelectItem>
-                      <SelectItem value="07:30:00">07:30</SelectItem>
-                      <SelectItem value="08:00:00">08:00</SelectItem>
-                      <SelectItem value="08:30:00">08:30</SelectItem>
-                      <SelectItem value="09:00:00">09:00</SelectItem>
-                      <SelectItem value="09:30:00">09:30</SelectItem>
-                      <SelectItem value="10:00:00">10:00</SelectItem>
-                      <SelectItem value="10:30:00">10:30</SelectItem>
-                      <SelectItem value="11:00:00">11:00</SelectItem>
-                      <SelectItem value="11:30:00">11:30</SelectItem>
-                      <SelectItem value="12:00:00">12:00</SelectItem>
-                      <SelectItem value="12:30:00">12:30</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Tarde</SelectLabel>
-                      <SelectItem value="13:00:00">13:00</SelectItem>
-                      <SelectItem value="13:30:00">13:30</SelectItem>
-                      <SelectItem value="14:00:00">14:00</SelectItem>
-                      <SelectItem value="14:30:00">14:30</SelectItem>
-                      <SelectItem value="15:00:00">15:00</SelectItem>
-                      <SelectItem value="15:30:00">15:30</SelectItem>
-                      <SelectItem value="16:00:00">16:00</SelectItem>
-                      <SelectItem value="16:30:00">16:30</SelectItem>
-                      <SelectItem value="17:00:00">17:00</SelectItem>
-                      <SelectItem value="17:30:00">17:30</SelectItem>
-                      <SelectItem value="18:00:00">18:00</SelectItem>
-                      <SelectItem value="18:30:00">18:30</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Noite</SelectLabel>
-                      <SelectItem value="19:00:00">19:00</SelectItem>
-                      <SelectItem value="19:30:00">19:30</SelectItem>
-                      <SelectItem value="20:00:00">20:00</SelectItem>
-                      <SelectItem value="20:30:00">20:30</SelectItem>
-                      <SelectItem value="21:00:00">21:00</SelectItem>
-                      <SelectItem value="21:30:00">21:30</SelectItem>
-                      <SelectItem value="22:00:00">22:00</SelectItem>
-                      <SelectItem value="22:30:00">22:30</SelectItem>
-                      <SelectItem value="23:00:00">23:00</SelectItem>
-                      <SelectItem value="23:30:00">23:30</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="availableToTime"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Horário final de disponibilidade</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um horário" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Manhã</SelectLabel>
-                      <SelectItem value="05:00:00">05:00</SelectItem>
-                      <SelectItem value="05:30:00">05:30</SelectItem>
-                      <SelectItem value="06:00:00">06:00</SelectItem>
-                      <SelectItem value="06:30:00">06:30</SelectItem>
-                      <SelectItem value="07:00:00">07:00</SelectItem>
-                      <SelectItem value="07:30:00">07:30</SelectItem>
-                      <SelectItem value="08:00:00">08:00</SelectItem>
-                      <SelectItem value="08:30:00">08:30</SelectItem>
-                      <SelectItem value="09:00:00">09:00</SelectItem>
-                      <SelectItem value="09:30:00">09:30</SelectItem>
-                      <SelectItem value="10:00:00">10:00</SelectItem>
-                      <SelectItem value="10:30:00">10:30</SelectItem>
-                      <SelectItem value="11:00:00">11:00</SelectItem>
-                      <SelectItem value="11:30:00">11:30</SelectItem>
-                      <SelectItem value="12:00:00">12:00</SelectItem>
-                      <SelectItem value="12:30:00">12:30</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Tarde</SelectLabel>
-                      <SelectItem value="13:00:00">13:00</SelectItem>
-                      <SelectItem value="13:30:00">13:30</SelectItem>
-                      <SelectItem value="14:00:00">14:00</SelectItem>
-                      <SelectItem value="14:30:00">14:30</SelectItem>
-                      <SelectItem value="15:00:00">15:00</SelectItem>
-                      <SelectItem value="15:30:00">15:30</SelectItem>
-                      <SelectItem value="16:00:00">16:00</SelectItem>
-                      <SelectItem value="16:30:00">16:30</SelectItem>
-                      <SelectItem value="17:00:00">17:00</SelectItem>
-                      <SelectItem value="17:30:00">17:30</SelectItem>
-                      <SelectItem value="18:00:00">18:00</SelectItem>
-                      <SelectItem value="18:30:00">18:30</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Noite</SelectLabel>
-                      <SelectItem value="19:00:00">19:00</SelectItem>
-                      <SelectItem value="19:30:00">19:30</SelectItem>
-                      <SelectItem value="20:00:00">20:00</SelectItem>
-                      <SelectItem value="20:30:00">20:30</SelectItem>
-                      <SelectItem value="21:00:00">21:00</SelectItem>
-                      <SelectItem value="21:30:00">21:30</SelectItem>
-                      <SelectItem value="22:00:00">22:00</SelectItem>
-                      <SelectItem value="22:30:00">22:30</SelectItem>
-                      <SelectItem value="23:00:00">23:00</SelectItem>
-                      <SelectItem value="23:30:00">23:30</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Section>
+
+          <Section title="Disponibilidade">
+            {daySelect("availableFromWeekDay")}
+            {daySelect("availableToWeekDay")}
+            {timeSelect("availableFromTime")}
+            {timeSelect("availableToTime")}
+          </Section>
+
           <DialogFooter>
             <Button type="submit" disabled={upsertDoctorAction.isPending}>
               {upsertDoctorAction.isPending
