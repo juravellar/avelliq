@@ -12,19 +12,55 @@ export const timeRangeRule = {
 
 export const MAX_HEALTH_INSURANCES = 30;
 
-// The most common plans, offered as suggestions; any other can be typed.
-export const COMMON_HEALTH_INSURANCES = [
+// Plans offered as suggestions while typing; any other can still be typed.
+// National ones first, then the doctor's state's own (state public-servant
+// plans and strong regional operators), so a doctor in GO sees Ipasgo.
+const NATIONAL_HEALTH_INSURANCES = [
+  "Allianz Saúde",
   "Amil",
   "Bradesco Saúde",
+  "Care Plus",
   "Cassi",
   "Geap",
   "Golden Cross",
   "Hapvida",
+  "Mediservice",
   "NotreDame Intermédica",
+  "Omint",
   "Porto Saúde",
+  "Postal Saúde",
   "Prevent Senior",
+  "Saúde Caixa",
   "SulAmérica",
   "Unimed",
+];
+
+const REGIONAL_HEALTH_INSURANCES: Record<string, string[]> = {
+  AL: ["Ipaseal Saúde"],
+  BA: ["Planserv"],
+  CE: ["Issec"],
+  DF: ["GDF Saúde (Inas)"],
+  GO: ["Ipasgo Saúde"],
+  MG: ["IPSEMG", "Cemig Saúde"],
+  MS: ["Cassems"],
+  MT: ["MT Saúde"],
+  PA: ["Iasep"],
+  PE: ["Sassepe"],
+  PI: ["Iapep Saúde"],
+  PR: ["Clinipam", "Paraná Clínicas"],
+  RJ: ["Assim Saúde", "Leve Saúde"],
+  RS: ["IPE Saúde", "Cabergs"],
+  SC: ["SC Saúde"],
+  SE: ["Ipes Saúde"],
+  SP: ["Iamspe", "Cabesp"],
+  TO: ["Plansaúde"],
+};
+
+// The suggestions for a doctor registered in `state` (the CRM's UF): the
+// state's own plans first, since those are the ones people look for.
+export const healthInsuranceSuggestions = (state?: string | null) => [
+  ...(state ? (REGIONAL_HEALTH_INSURANCES[state] ?? []) : []),
+  ...NATIONAL_HEALTH_INSURANCES,
 ];
 
 // The professional and contact details, all optional so doctors saved before
