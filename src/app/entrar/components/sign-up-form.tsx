@@ -98,6 +98,7 @@ const SignUpForm = () => {
                   <FormLabel>Nome de usuário</FormLabel>
                   <FormControl>
                     <Input
+                      maxLength={120}
                       placeholder="Digite seu nome de usuário"
                       {...field}
                     />
@@ -114,6 +115,7 @@ const SignUpForm = () => {
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input
+                      maxLength={254}
                       type="email"
                       placeholder="Digite seu email"
                       {...field}
@@ -131,6 +133,7 @@ const SignUpForm = () => {
                   <FormLabel>Senha</FormLabel>
                   <FormControl>
                     <PasswordInput
+                      maxLength={128}
                       autoComplete="new-password"
                       placeholder="Mínimo de 8 caracteres"
                       {...field}
@@ -148,6 +151,7 @@ const SignUpForm = () => {
                   <FormLabel>Repita a senha</FormLabel>
                   <FormControl>
                     <PasswordInput
+                      maxLength={128}
                       autoComplete="new-password"
                       placeholder="Digite a senha de novo"
                       {...field}

@@ -144,6 +144,7 @@ const LoginForm = ({ canResetPassword }: { canResetPassword: boolean }) => {
                   </div>
                   <FormControl>
                     <PasswordInput
+                      maxLength={128}
                       autoComplete="current-password"
                       placeholder="Digite sua senha"
                       {...field}

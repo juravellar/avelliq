@@ -11,6 +11,8 @@ import { toast } from "sonner";
 
 import { updateClinic } from "@/actions/update-clinic";
 import {
+  CLINIC_ADDRESS_MAX,
+  CLINIC_NAME_MAX,
   clinicFormSchema,
   type UpdateClinicSchema,
 } from "@/actions/update-clinic/schema";
@@ -107,7 +109,7 @@ export function ClinicSettingsForm({
                   <FormItem>
                     <FormLabel>Nome</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} maxLength={CLINIC_NAME_MAX} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -122,6 +124,7 @@ export function ClinicSettingsForm({
                     <FormControl>
                       <Input
                         placeholder="Rua, número, bairro, cidade"
+                        maxLength={CLINIC_ADDRESS_MAX}
                         {...field}
                       />
                     </FormControl>

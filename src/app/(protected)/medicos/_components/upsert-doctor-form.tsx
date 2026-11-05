@@ -8,8 +8,10 @@ import { z } from "zod";
 
 import { upsertDoctor } from "@/actions/upsert-doctor";
 import {
+  DOCTOR_NAME_MAX,
   doctorDetailsProblems,
   doctorDetailsSchema,
+  EMAIL_MAX,
   healthInsuranceSuggestions,
   MAX_HEALTH_INSURANCES,
   timeRangeRule,
@@ -364,7 +366,7 @@ const UpsertDoctorForm = ({
                 <FormItem className="sm:col-span-2">
                   <FormLabel>Nome</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} maxLength={DOCTOR_NAME_MAX} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -495,7 +497,12 @@ const UpsertDoctorForm = ({
                 <FormItem>
                   <FormLabel>E-mail</FormLabel>
                   <FormControl>
-                    <Input {...field} type="email" autoComplete="off" />
+                    <Input
+                      {...field}
+                      type="email"
+                      autoComplete="off"
+                      maxLength={EMAIL_MAX}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

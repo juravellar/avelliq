@@ -87,7 +87,7 @@ const ClinicForm = ({
               <FormItem>
                 <FormLabel>Nome</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <Input {...field} maxLength={120} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

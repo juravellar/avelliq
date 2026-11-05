@@ -14,15 +14,40 @@ const text = (max: number) =>
 const isValidBirthDate = (value: string) =>
   isCalendarDay(value) && value >= "1900-01-01" && value <= clinicToday();
 
+// Maximum lengths, shared by the validation and the form's inputs, so a field
+// stops taking characters where the rule would refuse them.
+export const PATIENT_LIMITS = {
+  name: 120,
+  email: 254,
+  healthInsurance: 100,
+  healthInsuranceNumber: 50,
+  addressStreet: 200,
+  addressNumber: 20,
+  addressComplement: 100,
+  addressDistrict: 100,
+  addressCity: 100,
+  emergencyContactName: 120,
+  notes: 1000,
+} as const;
+
 // Shared by the form and the server action, so both apply the same rules.
 export const upsertPatientSchema = z.object({
   id: z.string().uuid().optional(),
-  name: z.string().trim().min(1, {
-    message: "Nome é obrigatório.",
-  }),
-  email: z.string().email({
-    message: "Email inválido.",
-  }),
+  name: z
+    .string()
+    .trim()
+    .min(1, {
+      message: "Nome é obrigatório.",
+    })
+    .max(PATIENT_LIMITS.name, {
+      message: `Use até ${PATIENT_LIMITS.name} caracteres.`,
+    }),
+  email: z
+    .string()
+    .email({
+      message: "Email inválido.",
+    })
+    .max(PATIENT_LIMITS.email, { message: "Email muito longo." }),
   // Checked against the saved number by patientFormSchema and the action.
   phoneNumber: z
     .string()
@@ -43,19 +68,19 @@ export const upsertPatientSchema = z.object({
     .refine((value) => !value || isValidCpf(value), {
       message: "CPF inválido.",
     }),
-  healthInsurance: text(100),
-  healthInsuranceNumber: text(50),
+  healthInsurance: text(PATIENT_LIMITS.healthInsurance),
+  healthInsuranceNumber: text(PATIENT_LIMITS.healthInsuranceNumber),
   addressZip: z
     .string()
     .optional()
     .refine((value) => !value || onlyDigits(value).length === 8, {
       message: "CEP inválido.",
     }),
-  addressStreet: text(200),
-  addressNumber: text(20),
-  addressComplement: text(100),
-  addressDistrict: text(100),
-  addressCity: text(100),
+  addressStreet: text(PATIENT_LIMITS.addressStreet),
+  addressNumber: text(PATIENT_LIMITS.addressNumber),
+  addressComplement: text(PATIENT_LIMITS.addressComplement),
+  addressDistrict: text(PATIENT_LIMITS.addressDistrict),
+  addressCity: text(PATIENT_LIMITS.addressCity),
   addressState: z
     .string()
     .optional()
@@ -64,14 +89,14 @@ export const upsertPatientSchema = z.object({
         !value || (BRAZILIAN_STATES as readonly string[]).includes(value),
       { message: "UF inválida." },
     ),
-  emergencyContactName: text(120),
+  emergencyContactName: text(PATIENT_LIMITS.emergencyContactName),
   emergencyContactPhone: z
     .string()
     .optional()
     .refine((value) => !value || isValidPhone(value), {
       message: "Telefone inválido.",
     }),
-  notes: text(1000),
+  notes: text(PATIENT_LIMITS.notes),
 });
 
 export type UpsertPatientSchema = z.infer<typeof upsertPatientSchema>;

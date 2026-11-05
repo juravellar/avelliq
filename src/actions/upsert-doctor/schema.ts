@@ -11,6 +11,8 @@ export const timeRangeRule = {
 };
 
 export const MAX_HEALTH_INSURANCES = 30;
+export const DOCTOR_NAME_MAX = 120;
+export const EMAIL_MAX = 254;
 
 // Plans offered as suggestions while typing; any other can still be typed.
 // National ones first, then the doctor's state's own (state public-servant
@@ -95,6 +97,7 @@ export const doctorDetailsSchema = z.object({
   email: z
     .string()
     .trim()
+    .max(EMAIL_MAX, { message: "E-mail muito longo." })
     .optional()
     .refine((value) => !value || z.string().email().safeParse(value).success, {
       message: "E-mail inválido.",
@@ -137,9 +140,15 @@ export const doctorDetailsProblems = (details: DoctorDetails) => {
 export const upsertDoctorSchema = z
   .object({
     id: z.string().uuid().optional(),
-    name: z.string().trim().min(1, {
-      message: "Nome é obrigatório.",
-    }),
+    name: z
+      .string()
+      .trim()
+      .min(1, {
+        message: "Nome é obrigatório.",
+      })
+      .max(DOCTOR_NAME_MAX, {
+        message: `Use até ${DOCTOR_NAME_MAX} caracteres.`,
+      }),
     specialty: z.string().trim().min(1, {
       message: "Especialidade é obrigatória.",
     }),
