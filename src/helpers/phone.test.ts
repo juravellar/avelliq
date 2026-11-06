@@ -67,6 +67,14 @@ describe("isValidPhone", () => {
 });
 
 describe("editPhone", () => {
+  it("strips the country code of a paste over a selected full number", () => {
+    expect(
+      editPhone("(11) 99999-9999", "+55 11 3456-7890", 16, {
+        hadSelection: true,
+      }).digits,
+    ).toBe("1134567890");
+  });
+
   it("doesn't take an area code 55 for a country code when typing", () => {
     expect(editPhone("(55) 99999-9999", "(55) 99999-99991", 16).digits).toBe(
       "55999999999",

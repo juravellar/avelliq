@@ -52,7 +52,7 @@ export const isHelpFormMessage = (
   !!formSender &&
   !!email.subject?.startsWith("[Avelliq ·") &&
   sameAddress(email.from, formSender) &&
-  // A forged From fails DMARC; Avelliq's own mail passes it.
+  // A forged From fails DMARC, and "gray" (no policy published) proves nothing.
   email.authentication?.dmarc === "pass";
 
 // The customer an e-mail's ticket belongs to, and where the protocol and the

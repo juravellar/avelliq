@@ -206,8 +206,8 @@ const inboxOf = (email: ReceivedEmail) =>
 /**
  * Stores a received e-mail: as a new message of the ticket it answers, or as
  * a new ticket. A reply to a finalized ticket opens a new one that points
- * back to it. Returns null when the e-mail was already stored, or its ticket
- * was deleted.
+ * back to it. Returns null when the e-mail was already stored, its ticket was
+ * deleted, or it isn't a customer's.
  */
 export const importReceivedEmail = async (
   email: ReceivedEmail,
@@ -226,6 +226,12 @@ export const importReceivedEmail = async (
   }
 
   const customer = normalized(customerAddress(email));
+  // Our own sender with no valid signature: a form notice that lost its
+  // header, whose ticket already exists, or a forgery. Neither is a customer,
+  // and a ticket with our own address as the customer can't be answered.
+  if (customer === normalized(process.env.EMAIL_FROM ?? "")) {
+    return null;
+  }
   const fullBody = email.text?.trim() || htmlToText(email.html ?? "");
   const body =
     fullBody.length > MAX_BODY_LENGTH

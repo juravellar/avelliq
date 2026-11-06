@@ -301,7 +301,9 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(auto?.ticket.id).toBe(opened.id);
     const stored = (await getTicket(opened.id))!;
     expect(stored.awaitingTeam).toBe(false);
-    expect(stored.messages).toHaveLength(2);
+    expect(
+      stored.messages.filter(({ author }) => author === "customer"),
+    ).toHaveLength(2);
   });
 
   it("files an auto-reply to a finalized ticket there, without a new ticket", async () => {
@@ -328,7 +330,9 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(auto).toMatchObject({ opened: false });
     const stored = (await getTicket(opened.id))!;
     expect(stored).toMatchObject({ status: "concluded", awaitingTeam: false });
-    expect(stored.messages).toHaveLength(2);
+    expect(
+      stored.messages.filter(({ author }) => author === "customer"),
+    ).toHaveLength(2);
   });
 
   it("still opens a ticket for an auto-reply that matches none", async () => {
@@ -401,8 +405,8 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(await ticketsOf(customer)).toHaveLength(0);
   });
 
-  it("doesn't take an unsigned, unverified notice for the form's", async () => {
-    const { createFormTicket, importReceivedEmail, TICKET_HEADER } =
+  it("ignores an unsigned e-mail from our own sender", async () => {
+    const { createFormTicket, importReceivedEmail, getTicket, TICKET_HEADER } =
       await load();
     const ticket = await createFormTicket({
       name: "Ana",
@@ -423,7 +427,10 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
       NOW,
     );
 
-    expect(fake?.opened).toBe(true);
+    // Neither linked to the form's ticket nor opened as one for our address.
+    expect(fake).toBeNull();
+    const [message] = (await getTicket(ticket.id))!.messages;
+    expect(message.resendEmailId).toBeNull();
   });
 
   it("doesn't join a reply without a DMARC pass to the ticket", async () => {

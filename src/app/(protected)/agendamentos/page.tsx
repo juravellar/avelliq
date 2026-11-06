@@ -101,10 +101,13 @@ const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
         offset: (page - 1) * PAGE_SIZE,
       }),
     }),
-    db
-      .select({ total: count() })
-      .from(appointmentsTable)
-      .where(eq(appointmentsTable.clinicId, clinicId)),
+    // Only the list is paged.
+    view === "lista"
+      ? db
+          .select({ total: count() })
+          .from(appointmentsTable)
+          .where(eq(appointmentsTable.clinicId, clinicId))
+      : [{ total: 0 }],
   ]);
   // After deleting the last appointment of the last page, show the new last
   // one.
@@ -154,7 +157,9 @@ const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
             days={days}
             slots={calendarSlots(
               doctorId ? doctors.filter(({ id }) => id === doctorId) : doctors,
-              appointments,
+              doctorId
+                ? appointments.filter((a) => a.doctorId === doctorId)
+                : appointments,
             )}
             appointments={appointments}
             doctors={doctors}

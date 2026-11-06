@@ -15,26 +15,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { isCalendarDay } from "@/helpers/time";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const DATE = "YYYY-MM-DD";
-
-// Strict like date-fns' parse: dayjs rolls "2026-02-31" over to March, so
-// only a value that formats back to itself is a real day.
-const parseDay = (value: string) => dayjs(value, DATE).toDate();
-const isValid = (date: Date) => !Number.isNaN(date.getTime());
-const parseStrictDay = (value: string) => {
-  const date = parseDay(value);
-  return isValid(date) && dayjs(date).format(DATE) === value ? date : null;
-};
 
 // Dates in the URL are calendar days. nuqs' parseAsIsoDate reads them as UTC
 // midnight, which in Brazil is the evening before, so the picker showed the
 // previous day.
 const parseAsDay = createParser({
-  parse: (value) => {
-    return parseStrictDay(value);
-  },
+  parse: (value) => (isCalendarDay(value) ? dayjs(value).toDate() : null),
   serialize: (date) => dayjs(date).format(DATE),
   eq: (a, b) => a.getTime() === b.getTime(),
 });
@@ -48,7 +38,7 @@ export function DatePicker({ from, to }: { from: string; to: string }) {
     { from: parseAsDay, to: parseAsDay },
     { shallow: false },
   );
-  const range = { from: parseDay(from), to: parseDay(to) };
+  const range = { from: dayjs(from).toDate(), to: dayjs(to).toDate() };
 
   // Both ends are written together: a start alone would be paired on the
   // server with an end that may come before it.

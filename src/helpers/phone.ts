@@ -63,6 +63,7 @@ export const editPhone = (
   // One digit typed into a full number is ignored; only a paste carries a
   // country code, and an area code 55 must not be mistaken for one.
   let digits =
+    !hadSelection &&
     countDigits(edited) === PHONE_MAX_DIGITS + 1 &&
     phoneDigits(previous).length === PHONE_MAX_DIGITS
       ? edited.replace(/\D/g, "").slice(0, PHONE_MAX_DIGITS)

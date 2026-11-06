@@ -70,6 +70,8 @@ export const updateSupportTicket = actionClient
     // Once the e-mail is out, a failure to commit says so instead of
     // inviting a second send.
     const statusChange = status !== ticket.status ? status : null;
+    // Read here: inside the transaction it would take a second pool connection.
+    const ticketUrl = message ? await customerTicketUrl(ticket) : undefined;
     let sent = false;
     try {
       await db.transaction(async (tx) => {
@@ -124,7 +126,7 @@ export const updateSupportTicket = actionClient
               finalStatusName: isFinalStatus(status)
                 ? STATUS_NAMES[status].toLowerCase()
                 : undefined,
-              ticketUrl: await customerTicketUrl(ticket),
+              ticketUrl,
             }),
             headers: ticketThreadHeaders(
               customerMessages.map(({ messageId }) => messageId ?? ""),
