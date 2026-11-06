@@ -27,6 +27,11 @@ export const upsertDoctor = clinicWriteActionClient
       if (existingDoctor && existingDoctor.clinicId !== clinicId) {
         throw new Error("Médico não encontrado");
       }
+      // Deleted in the meantime: saving must not bring it back with the
+      // client's id.
+      if (parsedInput.id && !existingDoctor) {
+        throw new UserFacingError("Médico não encontrado. Atualize a página.");
+      }
       if (!existingDoctor) {
         const doctorCount = await tx.$count(
           doctorsTable,

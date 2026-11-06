@@ -20,8 +20,9 @@ export const STATUS_NAMES: Record<SupportStatus, string> = {
 
 // Concluded and archived tickets take no more messages. To disagree, the
 // customer opens another ticket quoting the old protocol.
+export const FINAL_STATUSES: SupportStatus[] = ["concluded", "archived"];
 export const isFinalStatus = (status: SupportStatus) =>
-  status === "concluded" || status === "archived";
+  FINAL_STATUSES.includes(status);
 
 export const protocolOf = (number: number) =>
   `AV-${String(number).padStart(6, "0")}`;

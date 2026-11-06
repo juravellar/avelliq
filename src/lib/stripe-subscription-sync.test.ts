@@ -95,6 +95,39 @@ describe("syncSubscription", () => {
     });
   });
 
+  it("keeps Essencial for an unknown price, but logs it once", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const a = subscription("sub_a", {
+      items: {
+        data: [{ price: { id: "price_mystery" }, current_period_end: 1 }],
+      },
+    });
+    stripeHas(a, [a]);
+
+    await syncSubscription(stripe, "sub_a");
+
+    expect(mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: "essential" }),
+    );
+    expect(console.error).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("sub_a"),
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("price_mystery"),
+    );
+  });
+
+  it("doesn't log for a known price", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const a = subscription("sub_a");
+    stripeHas(a, [a]);
+
+    await syncSubscription(stripe, "sub_a");
+
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
   it("keeps the plan while a cancellation is scheduled for the period end", async () => {
     const a = subscription("sub_a", { cancel_at_period_end: true });
     stripeHas(a, [a]);
@@ -395,6 +428,23 @@ describe("syncSubscription with the test Stripe account", () => {
     expect(mocks.set).toHaveBeenCalledWith({
       qaPlan: "professional",
       stripeTestSubscriptionId: "sub_test",
+      stripeTestCustomerId: "cus_test",
+    });
+  });
+
+  it("leaves QA's hand-picked plan alone when there never was a test subscription", async () => {
+    mocks.findUser.mockResolvedValue(qa({ qaPlan: "professional" }));
+    const a = subscription("sub_test", {
+      customer: "cus_test",
+      metadata: testMetadata,
+      status: "canceled",
+    });
+    stripeHas(a, [a]);
+
+    await syncSubscription(stripe, "sub_test", "test");
+
+    expect(mocks.set).toHaveBeenCalledWith({
+      stripeTestSubscriptionId: null,
       stripeTestCustomerId: "cus_test",
     });
   });

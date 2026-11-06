@@ -43,8 +43,10 @@ import {
   deleteAccountAsOwner,
   getDeletionPreview,
   requestAccountDeletion,
+  unblockAccount,
 } from ".";
 
+const fresh = { createdAt: new Date() };
 const owner = { id: "owner", email: "equipe@avelliq.com", emailVerified: true };
 const admin = {
   id: "admin",
@@ -71,7 +73,7 @@ describe("account moderation actions", () => {
   });
 
   it("lets an admin block an account, ending its sessions", async () => {
-    mocks.getSession.mockResolvedValue({ user: admin });
+    mocks.getSession.mockResolvedValue({ user: admin, session: fresh });
 
     const result = await blockAccount({ userId: "customer", reason: "spam" });
 
@@ -88,12 +90,12 @@ describe("account moderation actions", () => {
   });
 
   it("doesn't let support block or anyone block an owner", async () => {
-    mocks.getSession.mockResolvedValue({ user: support });
+    mocks.getSession.mockResolvedValue({ user: support, session: fresh });
     expect(
       (await blockAccount({ userId: "customer", reason: "spam" }))?.serverError,
     ).toBe("Acesso negado.");
 
-    mocks.getSession.mockResolvedValue({ user: admin });
+    mocks.getSession.mockResolvedValue({ user: admin, session: fresh });
     mocks.findAccount.mockResolvedValue({ ...owner, id: "owner2" });
     expect(
       (await blockAccount({ userId: "owner2", reason: "spam" }))?.serverError,
@@ -102,7 +104,7 @@ describe("account moderation actions", () => {
   });
 
   it("lets admins only ask for a deletion, and the owner turn it down", async () => {
-    mocks.getSession.mockResolvedValue({ user: admin });
+    mocks.getSession.mockResolvedValue({ user: admin, session: fresh });
     expect(
       (
         await deleteAccountAsOwner({
@@ -123,7 +125,7 @@ describe("account moderation actions", () => {
       }),
     );
 
-    mocks.getSession.mockResolvedValue({ user: owner });
+    mocks.getSession.mockResolvedValue({ user: owner, session: fresh });
     mocks.findAccount.mockResolvedValue({
       ...customer,
       deletionRequestedBy: "admin",
@@ -136,7 +138,7 @@ describe("account moderation actions", () => {
   });
 
   it("deletes for the owner only after the account's e-mail is typed", async () => {
-    mocks.getSession.mockResolvedValue({ user: owner });
+    mocks.getSession.mockResolvedValue({ user: owner, session: fresh });
 
     const wrong = await deleteAccountAsOwner({
       userId: "customer",
@@ -155,8 +157,54 @@ describe("account moderation actions", () => {
     expect(mocks.removeAccount).toHaveBeenCalledWith(customer, "owner");
   });
 
+  it("refuses to delete on a sign-in older than 10 minutes", async () => {
+    mocks.getSession.mockResolvedValue({
+      user: owner,
+      session: { createdAt: new Date(Date.now() - 11 * 60 * 1000) },
+    });
+
+    const result = await deleteAccountAsOwner({
+      userId: "customer",
+      confirmEmail: "ana@clinica.com",
+    });
+
+    expect(result?.serverError).toContain("saia e entre de novo");
+    expect(mocks.removeAccount).not.toHaveBeenCalled();
+  });
+
+  it("keeps an admin from undoing a block an owner put on", async () => {
+    mocks.findAccount.mockImplementation(async (id: string) =>
+      id === "owner" ? owner : { ...customer, blockedBy: "owner" },
+    );
+    mocks.getSession.mockResolvedValue({ user: admin, session: fresh });
+
+    const result = await unblockAccount({ userId: "customer" });
+
+    expect(result?.serverError).toContain("conta principal");
+    expect(mocks.updated).not.toHaveBeenCalled();
+
+    mocks.getSession.mockResolvedValue({ user: owner, session: fresh });
+    await unblockAccount({ userId: "customer" });
+    expect(mocks.updated).toHaveBeenCalledWith(
+      expect.objectContaining({ blockedBy: null }),
+    );
+  });
+
+  it("lets an admin undo a block another admin put on", async () => {
+    mocks.findAccount.mockImplementation(async (id: string) =>
+      id === "support" ? support : { ...customer, blockedBy: "support" },
+    );
+    mocks.getSession.mockResolvedValue({ user: admin, session: fresh });
+
+    await unblockAccount({ userId: "customer" });
+
+    expect(mocks.updated).toHaveBeenCalledWith(
+      expect.objectContaining({ blockedBy: null }),
+    );
+  });
+
   it("keeps the account when billing can't be stopped", async () => {
-    mocks.getSession.mockResolvedValue({ user: owner });
+    mocks.getSession.mockResolvedValue({ user: owner, session: fresh });
     mocks.removeAccount.mockRejectedValue(new BillingNotCancelledError());
 
     const result = await deleteAccountAsOwner({

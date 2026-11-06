@@ -1,7 +1,15 @@
 export const PHONE_MAX_DIGITS = 11;
 
-export const phoneDigits = (value: string) =>
-  value.replace(/\D/g, "").slice(0, PHONE_MAX_DIGITS);
+// A pasted "+55 11 98765-4321" has more digits than a phone can hold; the
+// country code is dropped so the area code stays first.
+export const phoneDigits = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  const national =
+    digits.length > PHONE_MAX_DIGITS && digits.startsWith("55")
+      ? digits.slice(2)
+      : digits;
+  return national.slice(0, PHONE_MAX_DIGITS);
+};
 
 const countDigits = (value: string) => value.replace(/\D/g, "").length;
 
@@ -52,7 +60,14 @@ export const editPhone = (
   // selected when the key was pressed.
   { erasingForward = false, hadSelection = false } = {},
 ) => {
-  let digits = phoneDigits(edited);
+  // One digit typed into a full number is ignored; only a paste carries a
+  // country code, and an area code 55 must not be mistaken for one.
+  let digits =
+    !hadSelection &&
+    countDigits(edited) === PHONE_MAX_DIGITS + 1 &&
+    phoneDigits(previous).length === PHONE_MAX_DIGITS
+      ? edited.replace(/\D/g, "").slice(0, PHONE_MAX_DIGITS)
+      : phoneDigits(edited);
   let digitsBeforeCaret = countDigits(edited.slice(0, caret));
   // Only one character erased with nothing selected: deleting a selection
   // that held just separators must not take a digit with it.

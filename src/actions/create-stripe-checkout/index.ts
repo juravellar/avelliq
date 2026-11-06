@@ -8,9 +8,11 @@ import type Stripe from "stripe";
 import { z } from "zod";
 
 import { db } from "@/db";
+import { withUserLock } from "@/db/clinic-lock";
 import { usersTable } from "@/db/schema";
 import { UserFacingError } from "@/lib/action-errors";
 import { auth } from "@/lib/auth";
+import { appUrl } from "@/lib/email";
 import { actionClient } from "@/lib/next-safe-action";
 import { isPaidPlan, type PaidPlanId } from "@/lib/plans";
 import { stripeClient, stripeSecretKey } from "@/lib/stripe-client";
@@ -194,60 +196,66 @@ export const createStripeCheckout = actionClient
     }
 
     const stripe = stripeClient(mode);
-    const customerId = await ensureCustomer(stripe, user, mode);
+    // One checkout at a time per user: the idempotency key below only covers
+    // a single minute, so two requests across a minute boundary could
+    // otherwise both pass the checks and open two payable sessions. The lock
+    // only serializes; the work itself goes through db and Stripe.
+    return withUserLock(user.id, async () => {
+      const customerId = await ensureCustomer(stripe, user, mode);
 
-    // Stripe, not the database, is the source of truth here: the database
-    // only learns about a paid checkout when its webhook arrives.
-    if (await hasLiveSubscription(stripe, user, customerId, mode)) {
-      throw new UserFacingError(ALREADY_SUBSCRIBED_MESSAGE);
-    }
+      // Stripe, not the database, is the source of truth here: the database
+      // only learns about a paid checkout when its webhook arrives.
+      if (await hasLiveSubscription(stripe, user, customerId, mode)) {
+        throw new UserFacingError(ALREADY_SUBSCRIBED_MESSAGE);
+      }
 
-    const { reusable, openIds } = await resolveOpenCheckouts(
-      stripe,
-      customerId,
-      parsedInput.plan,
-      parsedInput.interval,
-    );
-    if (reusable) {
-      return { url: checkoutUrl(reusable) };
-    }
+      const { reusable, openIds } = await resolveOpenCheckouts(
+        stripe,
+        customerId,
+        parsedInput.plan,
+        parsedInput.interval,
+      );
+      if (reusable) {
+        return { url: checkoutUrl(reusable) };
+      }
 
-    // Requests within the same minute that saw the same open checkouts (a
-    // double click, two tabs) get the same session back instead of two
-    // payable ones. The open checkouts are part of the key so that returning
-    // to a plan whose checkout was just expired creates a fresh session
-    // instead of Stripe replaying the expired one.
-    const minute = Math.floor(Date.now() / 60_000).toString();
-    const checkout = await stripe.checkout.sessions.create(
-      {
-        payment_method_types: ["card"],
-        mode: "subscription",
-        customer: customerId,
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/painel?assinatura=confirmada`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/assinatura`,
-        metadata: { plan: parsedInput.plan, interval: parsedInput.interval },
-        subscription_data: {
-          metadata: {
-            userId: user.id,
-            ...(mode === "test" ? TEST_SUBSCRIPTION_METADATA : {}),
+      // Requests within the same minute that saw the same open checkouts (a
+      // double click, two tabs) get the same session back instead of two
+      // payable ones. The open checkouts are part of the key so that returning
+      // to a plan whose checkout was just expired creates a fresh session
+      // instead of Stripe replaying the expired one.
+      const minute = Math.floor(Date.now() / 60_000).toString();
+      const checkout = await stripe.checkout.sessions.create(
+        {
+          payment_method_types: ["card"],
+          mode: "subscription",
+          customer: customerId,
+          success_url: `${appUrl()}/painel?assinatura=confirmada`,
+          cancel_url: `${appUrl()}/assinatura`,
+          metadata: { plan: parsedInput.plan, interval: parsedInput.interval },
+          subscription_data: {
+            metadata: {
+              userId: user.id,
+              ...(mode === "test" ? TEST_SUBSCRIPTION_METADATA : {}),
+            },
           },
+          line_items: [
+            {
+              price: priceId,
+              quantity: 1,
+            },
+          ],
         },
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
-          },
-        ],
-      },
-      {
-        idempotencyKey: idempotencyKey(
-          "checkout",
-          customerId,
-          priceId,
-          minute,
-          ...[...openIds].sort(),
-        ),
-      },
-    );
-    return { url: checkoutUrl(checkout) };
+        {
+          idempotencyKey: idempotencyKey(
+            "checkout",
+            customerId,
+            priceId,
+            minute,
+            ...[...openIds].sort(),
+          ),
+        },
+      );
+      return { url: checkoutUrl(checkout) };
+    });
   });

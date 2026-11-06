@@ -1,20 +1,39 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ deleted: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  deleted: vi.fn(),
+  emailIds: vi.fn(),
+  tombstones: vi.fn(),
+}));
 
-vi.mock("@/db", () => ({
-  db: {
+vi.mock("@/db", () => {
+  const db: Record<string, unknown> = {
     delete: (table: unknown) => ({
       where: () => ({ returning: () => mocks.deleted(table) }),
     }),
-  },
-}));
+    // The received e-mail ids of the tickets about to go.
+    select: () => ({
+      from: () => ({
+        innerJoin: () => ({ where: async () => mocks.emailIds() }),
+      }),
+    }),
+    insert: () => ({
+      values: (rows: unknown) => ({
+        onConflictDoNothing: async () => mocks.tombstones(rows),
+      }),
+    }),
+    execute: vi.fn(),
+  };
+  db.transaction = async (fn: (tx: unknown) => unknown) => fn(db);
+  return { db };
+});
 
 import {
   auditLogsTable,
   sessionsTable,
   supportTicketsTable,
 } from "@/db/schema";
+import { emailIdHash } from "@/lib/support/email-id-hash";
 
 import { GET } from "./route";
 
@@ -27,6 +46,7 @@ describe("data-retention cron", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("CRON_SECRET", "s3cret");
+    mocks.emailIds.mockResolvedValue([]);
     mocks.deleted.mockImplementation(async (table) =>
       table === sessionsTable
         ? [{ id: "a" }, { id: "b" }]
@@ -51,9 +71,20 @@ describe("data-retention cron", () => {
     });
   });
 
+  it("remembers the hashed e-mail ids of the expired tickets before deleting", async () => {
+    mocks.emailIds.mockResolvedValue([{ id: "email_1" }, { id: "email_1" }]);
+
+    await GET(request("Bearer s3cret"));
+
+    expect(mocks.tombstones).toHaveBeenCalledWith([
+      { resendEmailIdHash: emailIdHash("email_1") },
+    ]);
+  });
+
   it("refuses a request without the cron secret", async () => {
     expect((await GET(request())).status).toBe(401);
     expect((await GET(request("Bearer wrong"))).status).toBe(401);
+    expect((await GET(request("Bearer s3creT"))).status).toBe(401);
     expect(mocks.deleted).not.toHaveBeenCalled();
   });
 

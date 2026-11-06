@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  appUrl,
   isEmailConfigured,
+  requiresEmailVerification,
   resetPasswordEmail,
   sendEmail,
   supportReplyEmail,
@@ -14,6 +16,21 @@ describe("email", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+  });
+
+  it("requires verification when e-mail is set up or in production", () => {
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("EMAIL_FROM", "");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect(requiresEmailVerification()).toBe(false);
+
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(requiresEmailVerification()).toBe(true);
+
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("RESEND_API_KEY", "re_x");
+    vi.stubEnv("EMAIL_FROM", "Avelliq <a@b.com>");
+    expect(requiresEmailVerification()).toBe(true);
   });
 
   it("is off unless both the API key and the sender are set", () => {
@@ -72,6 +89,23 @@ describe("email", () => {
     const { html } = verificationEmail("https://x");
     expect(html).not.toContain('href=""');
     expect(html).toContain('href="https://www.avelliq.com.br"');
+  });
+
+  it("falls back to the preview's own URL, never to production", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "avelliq-git-x.vercel.app");
+    expect(appUrl()).toBe("https://avelliq-git-x.vercel.app");
+
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(appUrl()).toBe("https://www.avelliq.com.br");
+  });
+
+  it("prefers the configured app URL over the preview's", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.example.com/");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "avelliq-git-x.vercel.app");
+    expect(appUrl()).toBe("https://app.example.com");
   });
 
   it("keeps the card at 560px in Outlook, which ignores max-width", () => {

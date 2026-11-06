@@ -34,13 +34,14 @@ vi.mock("@/db", () => {
   return { db };
 });
 
+import { TERMS_VERSION } from "@/lib/terms";
+
 import { upsertDoctor } from ".";
 
 const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
 const DOCTOR_ID = "22222222-2222-4222-8222-222222222222";
 
 const input = {
-  id: DOCTOR_ID,
   name: "Dra. Ana",
   specialty: "Cardiologia",
   appointmentPriceInCents: 20000,
@@ -55,7 +56,11 @@ describe("upsertDoctor", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.getSession.mockResolvedValue({
-      user: { plan: "essential", clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: "essential",
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.countDoctors.mockResolvedValue(0);
   });
@@ -73,7 +78,7 @@ describe("upsertDoctor", () => {
   it("refuses to overwrite a doctor from another clinic", async () => {
     mocks.findDoctor.mockResolvedValue({ id: DOCTOR_ID, clinicId: "other" });
 
-    const result = await upsertDoctor(input);
+    const result = await upsertDoctor({ ...input, id: DOCTOR_ID });
 
     expect(result?.serverError).toBeDefined();
     expect(mocks.values).not.toHaveBeenCalled();
@@ -82,7 +87,7 @@ describe("upsertDoctor", () => {
   it("updates a doctor from the same clinic, storing times in UTC", async () => {
     mocks.findDoctor.mockResolvedValue({ id: DOCTOR_ID, clinicId: CLINIC_ID });
 
-    const result = await upsertDoctor(input);
+    const result = await upsertDoctor({ ...input, id: DOCTOR_ID });
 
     expect(result?.serverError).toBeUndefined();
     expect(mocks.values).toHaveBeenCalledWith(
@@ -97,7 +102,18 @@ describe("upsertDoctor", () => {
     );
   });
 
-  it("creates a doctor when the id does not exist yet", async () => {
+  it("doesn't recreate a doctor that was deleted meanwhile", async () => {
+    mocks.findDoctor.mockResolvedValue(undefined);
+
+    const result = await upsertDoctor({ ...input, id: DOCTOR_ID });
+
+    expect(result?.serverError).toBe(
+      "Médico não encontrado. Atualize a página.",
+    );
+    expect(mocks.values).not.toHaveBeenCalled();
+  });
+
+  it("creates a doctor when there is no id yet", async () => {
     mocks.findDoctor.mockResolvedValue(undefined);
 
     const result = await upsertDoctor(input);
@@ -126,7 +142,11 @@ describe("upsertDoctor", () => {
 
   it("blocks a second doctor on the Free plan", async () => {
     mocks.getSession.mockResolvedValue({
-      user: { plan: null, clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: null,
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.findDoctor.mockResolvedValue(undefined);
     mocks.countDoctors.mockResolvedValue(1);
@@ -151,12 +171,16 @@ describe("upsertDoctor", () => {
 
   it("does not count limits when editing an existing doctor", async () => {
     mocks.getSession.mockResolvedValue({
-      user: { plan: null, clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: null,
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.findDoctor.mockResolvedValue({ id: DOCTOR_ID, clinicId: CLINIC_ID });
     mocks.countDoctors.mockResolvedValue(1);
 
-    const result = await upsertDoctor(input);
+    const result = await upsertDoctor({ ...input, id: DOCTOR_ID });
 
     expect(result?.serverError).toBeUndefined();
     expect(mocks.countDoctors).not.toHaveBeenCalled();
@@ -182,6 +206,7 @@ describe("upsertDoctor", () => {
     vi.setSystemTime(new Date("2027-03-01T12:00:00Z"));
     mocks.getSession.mockResolvedValue({
       user: {
+        termsVersion: TERMS_VERSION,
         plan: null,
         freePeriodStartsAt: new Date("2026-11-10T15:00:00Z"),
         clinic: { id: CLINIC_ID, writable: true },
@@ -202,6 +227,7 @@ describe("upsertDoctor", () => {
     vi.setSystemTime(new Date("2027-03-01T12:00:00Z"));
     mocks.getSession.mockResolvedValue({
       user: {
+        termsVersion: TERMS_VERSION,
         plan: "essential",
         freePeriodStartsAt: new Date("2026-11-10T15:00:00Z"),
         clinic: { id: CLINIC_ID, writable: true },

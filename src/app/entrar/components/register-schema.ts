@@ -20,9 +20,7 @@ export const registerSchema = z
     // locks the person out of the account they just created.
     confirmPassword: z.string(),
     acceptTerms: z.literal(true, {
-      errorMap: () => ({
-        message: "Aceite os Termos de Uso e a Política de Privacidade",
-      }),
+      error: "Aceite os Termos de Uso e a Política de Privacidade",
     }),
   })
   .refine(({ password, confirmPassword }) => password === confirmPassword, {

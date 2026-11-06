@@ -45,8 +45,22 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     process.env.DATABASE_URL = databaseUrl;
     const { db } = await import("@/db");
     const schema = await import("@/db/schema");
-    const tickets = await import("./tickets");
-    return { db, schema, ...tickets };
+    const [tickets, imports, team, customer, retention] = await Promise.all([
+      import("./tickets"),
+      import("./import"),
+      import("./team-queries"),
+      import("./customer-queries"),
+      import("./retention"),
+    ]);
+    return {
+      db,
+      schema,
+      ...tickets,
+      ...imports,
+      ...team,
+      ...customer,
+      ...retention,
+    };
   };
 
   // A different customer per test: the database is shared.
@@ -222,8 +236,177 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(messages[0].messageId).toBeNull();
   });
 
-  it("doesn't take an unsigned, unverified notice for the form's", async () => {
-    const { createFormTicket, importReceivedEmail, TICKET_HEADER } =
+  it("links the form's notice even after a help-panel reply", async () => {
+    const {
+      addCustomerMessage,
+      createFormTicket,
+      formNoticeHeader,
+      importReceivedEmail,
+      TICKET_HEADER,
+    } = await load();
+    const ticket = await createFormTicket({
+      name: "Ana",
+      email: customer,
+      subject: "Dúvida: horário",
+      message: "Como mudo o horário?",
+      context: "Conta: user_1",
+    });
+    // Also has no e-mail id; only the form's own message may take the notice's.
+    await addCustomerMessage(ticket.id, customer, "Ainda estou aqui.");
+
+    const notice = await importReceivedEmail(
+      received({
+        from: "Avelliq <nao-responda@mail.avelliq.com.br>",
+        reply_to: [customer],
+        subject: `[Avelliq · Protocolo ${ticket.protocol}] Dúvida: horário`,
+        headers: {
+          [TICKET_HEADER.toLowerCase()]: formNoticeHeader(ticket.protocol),
+        },
+        authentication: { spf: "pass", dkim: "pass", dmarc: "gray" },
+      }),
+      NOW,
+    );
+
+    expect(notice).toBeNull();
+    const messages = await messagesOf(ticket.id);
+    expect(messages).toHaveLength(2);
+    expect(messages[0].resendEmailId).not.toBeNull();
+    expect(messages[1].resendEmailId).toBeNull();
+  });
+
+  it("keeps an auto-reply in the thread without asking the team to answer", async () => {
+    const { db, schema, importReceivedEmail, getTicket } = await load();
+    const { eq } = await import("drizzle-orm");
+    const first = received({ from: customer });
+    const opened = (await importReceivedEmail(first, NOW))!.ticket;
+    await db
+      .update(schema.supportTicketsTable)
+      .set({ awaitingTeam: false })
+      .where(eq(schema.supportTicketsTable.id, opened.id));
+
+    const auto = await importReceivedEmail(
+      received({
+        from: customer,
+        subject: "Resposta automática: Não consigo agendar",
+        headers: {
+          "in-reply-to": first.message_id!,
+          "auto-submitted": "auto-replied",
+        },
+        created_at: "2026-11-04T12:10:00Z",
+      }),
+      NOW,
+    );
+
+    expect(auto).toMatchObject({ opened: false });
+    expect(auto?.ticket.id).toBe(opened.id);
+    const stored = (await getTicket(opened.id))!;
+    expect(stored.awaitingTeam).toBe(false);
+    expect(
+      stored.messages.filter(({ author }) => author === "customer"),
+    ).toHaveLength(2);
+  });
+
+  it("files an auto-reply to a finalized ticket there, without a new ticket", async () => {
+    const { db, schema, importReceivedEmail, getTicket } = await load();
+    const { eq } = await import("drizzle-orm");
+    const first = received({ from: customer });
+    const opened = (await importReceivedEmail(first, NOW))!.ticket;
+    await db
+      .update(schema.supportTicketsTable)
+      .set({ status: "concluded", awaitingTeam: false })
+      .where(eq(schema.supportTicketsTable.id, opened.id));
+
+    const auto = await importReceivedEmail(
+      received({
+        from: customer,
+        headers: {
+          "in-reply-to": first.message_id!,
+          "auto-submitted": "auto-replied",
+        },
+      }),
+      NOW,
+    );
+
+    expect(auto).toMatchObject({ opened: false });
+    const stored = (await getTicket(opened.id))!;
+    expect(stored).toMatchObject({ status: "concluded", awaitingTeam: false });
+    expect(
+      stored.messages.filter(({ author }) => author === "customer"),
+    ).toHaveLength(2);
+  });
+
+  it("still opens a ticket for an auto-reply that matches none", async () => {
+    const { importReceivedEmail } = await load();
+    const auto = await importReceivedEmail(
+      received({
+        from: customer,
+        headers: { "auto-submitted": "auto-replied" },
+      }),
+      NOW,
+    );
+
+    expect(auto?.opened).toBe(true);
+  });
+
+  it("counts a message imported after the team already opened the ticket", async () => {
+    const { importReceivedEmail, countNewForTeam, markSeenByTeam } =
+      await load();
+    const first = received({ from: customer });
+    const opened = (await importReceivedEmail(first, NOW))!.ticket;
+    await markSeenByTeam(opened.id);
+    const before = await countNewForTeam({ seesAll: true });
+
+    // Arrived before the team opened the ticket, imported only afterwards.
+    await importReceivedEmail(
+      received({
+        from: customer,
+        headers: { "in-reply-to": first.message_id! },
+        created_at: "2026-11-04T12:10:00Z",
+      }),
+      NOW,
+    );
+
+    expect(await countNewForTeam({ seesAll: true })).toBe(before + 1);
+  });
+
+  it("drops the notice of a form ticket that was already deleted", async () => {
+    const {
+      db,
+      createFormTicket,
+      deleteTicketsOf,
+      formNoticeHeader,
+      importReceivedEmail,
+      ticketsOf,
+      TICKET_HEADER,
+    } = await load();
+    const ticket = await createFormTicket({
+      name: "Ana",
+      email: customer,
+      subject: "Dúvida: horário",
+      message: "Como mudo o horário?",
+      context: "Conta: user_1",
+    });
+    await deleteTicketsOf(db, customer);
+
+    const notice = await importReceivedEmail(
+      received({
+        from: "Avelliq <nao-responda@mail.avelliq.com.br>",
+        reply_to: [customer],
+        subject: `[Avelliq · Protocolo ${ticket.protocol}] Dúvida: horário`,
+        headers: {
+          [TICKET_HEADER.toLowerCase()]: formNoticeHeader(ticket.protocol),
+        },
+        authentication: { spf: "pass", dkim: "pass", dmarc: "gray" },
+      }),
+      NOW,
+    );
+
+    expect(notice).toBeNull();
+    expect(await ticketsOf(customer)).toHaveLength(0);
+  });
+
+  it("ignores an unsigned e-mail from our own sender", async () => {
+    const { createFormTicket, importReceivedEmail, getTicket, TICKET_HEADER } =
       await load();
     const ticket = await createFormTicket({
       name: "Ana",
@@ -244,25 +427,90 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
       NOW,
     );
 
-    expect(fake?.opened).toBe(true);
+    // Neither linked to the form's ticket nor opened as one for our address.
+    expect(fake).toBeNull();
+    const [message] = (await getTicket(ticket.id))!.messages;
+    expect(message.resendEmailId).toBeNull();
   });
 
-  it("joins a reply from a domain without DMARC to its ticket", async () => {
+  it("joins a reply without a DMARC pass only by the e-mail it answers", async () => {
     const { importReceivedEmail } = await load();
     const first = received({ from: customer });
     const opened = (await importReceivedEmail(first, NOW))!.ticket;
 
-    const reply = await importReceivedEmail(
-      received({
-        from: customer,
-        headers: { "in-reply-to": first.message_id! },
-        authentication: { spf: "pass", dkim: "pass", dmarc: "gray" },
-      }),
+    for (const authentication of [
+      { spf: "pass", dkim: "pass", dmarc: "gray" },
+      null,
+    ]) {
+      const reply = await importReceivedEmail(
+        received({
+          from: customer,
+          headers: { "in-reply-to": first.message_id! },
+          authentication,
+        }),
+        NOW,
+      );
+
+      expect(reply?.opened).toBe(false);
+      expect(reply?.ticket.id).toBe(opened.id);
+
+      const copied = await importReceivedEmail(
+        received({
+          from: customer,
+          subject: `Re: [Avelliq · Protocolo AV-${opened.number}]`,
+          authentication,
+        }),
+        NOW,
+      );
+
+      expect(copied?.opened).toBe(true);
+      expect(copied?.ticket.id).not.toBe(opened.id);
+      expect(copied?.ticket.previousTicketId).toBeNull();
+      const messages = await messagesOf(copied!.ticket.id);
+      expect(messages.some(({ body }) => body?.includes("DMARC"))).toBe(true);
+    }
+  });
+
+  it("doesn't fetch an ignored e-mail again on the next sync", async () => {
+    const { importReceivedEmail, syncInbox } = await load();
+    const ignored = received({
+      from: "Avelliq <nao-responda@mail.avelliq.com.br>",
+      authentication: { dmarc: "gray" },
+    });
+    expect(await importReceivedEmail(ignored, NOW)).toBeNull();
+
+    mocks.listReceivedEmails.mockResolvedValue({
+      data: [{ id: ignored.id }],
+      has_more: false,
+    });
+
+    expect(await syncInbox({ pauseMs: 0 })).toBe(0);
+    expect(mocks.getReceivedEmail).not.toHaveBeenCalled();
+  });
+
+  it("keys a ticket by the From, not by a Reply-To anyone can set", async () => {
+    const { importReceivedEmail } = await load();
+    const victim = `vitima-${randomUUID().slice(0, 8)}@x.com`;
+
+    const opened = await importReceivedEmail(
+      received({ from: customer, reply_to: [victim] }),
       NOW,
     );
 
-    expect(reply?.opened).toBe(false);
-    expect(reply?.ticket.id).toBe(opened.id);
+    expect(opened?.ticket.customerEmail).toBe(customer);
+    const ack = mocks.sendEmail.mock.calls[0][0];
+    expect(ack.to).toBe(customer);
+
+    const followUp = await importReceivedEmail(
+      received({
+        from: customer,
+        subject: `Re: [Avelliq · Protocolo AV-${opened!.ticket.number}]`,
+        created_at: "2026-11-04T12:10:00Z",
+      }),
+      NOW,
+    );
+    expect(followUp?.opened).toBe(false);
+    expect(followUp?.ticket.id).toBe(opened!.ticket.id);
   });
 
   it("links the form's notice by its subject when the header is lost", async () => {
@@ -280,6 +528,7 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
         from: "Avelliq <nao-responda@mail.avelliq.com.br>",
         reply_to: [customer],
         subject: `[Avelliq · Protocolo ${ticket.protocol}] Dúvida: horário`,
+        authentication: { dmarc: "pass" },
       }),
       NOW,
     );
@@ -560,5 +809,48 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
 
     await deleteTicketsOf(db, customer);
     expect(await ticketsOf(customer)).toHaveLength(0);
+  });
+
+  it("doesn't import again the e-mails of deleted tickets", async () => {
+    const { db, importReceivedEmail, deleteTicketsOf, syncInbox, ticketsOf } =
+      await load();
+    const email = received({ from: customer });
+    await importReceivedEmail(email, NOW);
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+
+    await db.transaction((tx) => deleteTicketsOf(tx, customer));
+    const again = await importReceivedEmail(email, NOW);
+
+    expect(again).toBeNull();
+    expect(await ticketsOf(customer)).toHaveLength(0);
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+
+    // The sync sees it as stored too, and stops scanning there.
+    mocks.listReceivedEmails.mockResolvedValue({
+      data: [{ id: email.id }],
+      has_more: true,
+    });
+    expect(await syncInbox({ pauseMs: 0 })).toBe(0);
+    expect(mocks.listReceivedEmails).toHaveBeenCalledTimes(1);
+    expect(mocks.getReceivedEmail).not.toHaveBeenCalled();
+  });
+
+  it("remembers the e-mails of expired tickets too", async () => {
+    const { db, schema, importReceivedEmail, deleteExpiredTickets } =
+      await load();
+    const { eq } = await import("drizzle-orm");
+    const email = received({ from: customer });
+    const opened = (await importReceivedEmail(email, NOW))!.ticket;
+    await db
+      .update(schema.supportTicketsTable)
+      .set({ lastMessageAt: new Date("2020-01-01T00:00:00Z") })
+      .where(eq(schema.supportTicketsTable.id, opened.id));
+
+    const deleted = await deleteExpiredTickets(
+      new Date("2021-01-01T00:00:00Z"),
+    );
+
+    expect(deleted.map(({ id }) => id)).toContain(opened.id);
+    expect(await importReceivedEmail(email, NOW)).toBeNull();
   });
 });

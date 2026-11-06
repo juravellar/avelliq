@@ -12,12 +12,6 @@ export const ACCOUNTS_PAGE_SIZE = 25;
 export const searchPattern = (term: string) =>
   `%${term.trim().replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
 
-// "1" or a junk value is the first page.
-export const pageNumber = (value: string | undefined) => {
-  const page = Number(value);
-  return Number.isInteger(page) && page > 1 ? page : 1;
-};
-
 export interface AccountRow {
   id: string;
   name: string;

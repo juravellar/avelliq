@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+
 import { lt } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -5,7 +7,7 @@ import { auditLogsTable, sessionsTable, verificationsTable } from "@/db/schema";
 import {
   deleteExpiredTickets,
   TICKET_RETENTION_YEARS,
-} from "@/lib/support/tickets";
+} from "@/lib/support/retention";
 
 // Sessions keep the IP address and browser of each sign-in. Once expired they
 // serve no purpose, so they are deleted instead of piling up (LGPD art. 16).
@@ -14,9 +16,20 @@ import {
 // Called daily by Vercel Cron, which sends CRON_SECRET as a bearer token.
 const AUDIT_RETENTION_YEARS = 5;
 
+// Compared as SHA-256 digests (always the same length) in constant time, so
+// the response time doesn't reveal how much of the secret was right.
+const sameSecret = (given: string, expected: string) =>
+  timingSafeEqual(
+    createHash("sha256").update(given).digest(),
+    createHash("sha256").update(expected).digest(),
+  );
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (
+    !secret ||
+    !sameSecret(request.headers.get("authorization") ?? "", `Bearer ${secret}`)
+  ) {
     return new Response("Unauthorized", { status: 401 });
   }
   const now = new Date();

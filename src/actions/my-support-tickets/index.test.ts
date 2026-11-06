@@ -12,7 +12,7 @@ vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession: mocks.getSession } },
 }));
 vi.mock("@/lib/support/inbox-refresh", () => ({ refreshInboxSoon: () => {} }));
-vi.mock("@/lib/support/tickets", () => ({
+vi.mock("@/lib/support/customer-queries", () => ({
   customerTickets: mocks.customerTickets,
   customerTicket: mocks.customerTicket,
   markSeenByCustomer: mocks.markSeen,

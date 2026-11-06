@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { emailIdHash } from "./email-id-hash";
 import type { ReceivedEmail } from "./inbox-helpers";
 import {
   cleanSubject,
@@ -31,6 +32,13 @@ const email: ReceivedEmail = {
 };
 
 describe("ticket helpers", () => {
+  it("hashes received e-mail ids as sha256 hex", () => {
+    expect(emailIdHash("abc")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
+    expect(emailIdHash("abc")).not.toBe(emailIdHash("abd"));
+  });
+
   it("writes and reads protocols", () => {
     expect(protocolOf(123)).toBe("AV-000123");
     expect(parseProtocol("Re: [Avelliq · Protocolo AV-000123] Dúvida")).toBe(

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { usersTable } from "@/db/schema";
 import { UserFacingError } from "@/lib/action-errors";
+import { isFreshSession } from "@/lib/fresh-session";
 import { BillingNotCancelledError, removeAccount } from "@/lib/remove-account";
 import { userActionClient } from "@/lib/user-action";
 
@@ -14,6 +15,12 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase();
 export const deleteAccount = userActionClient
   .schema(z.object({ confirmEmail: z.string() }))
   .action(async ({ parsedInput, ctx }) => {
+    // Deleting can't be undone, so an old session left open isn't enough.
+    if (!isFreshSession(ctx.session)) {
+      throw new UserFacingError(
+        "Por segurança, saia e entre de novo na sua conta para excluí-la.",
+      );
+    }
     if (
       normalizeEmail(parsedInput.confirmEmail) !==
       normalizeEmail(ctx.user.email)

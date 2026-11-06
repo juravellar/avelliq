@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   valid: vi.fn(),
+  production: vi.fn(),
   getReceivedEmail: vi.fn(),
   importReceivedEmail: vi.fn(),
 }));
@@ -10,9 +11,10 @@ vi.mock("@/lib/support/inbound-signature", () => ({
 }));
 vi.mock("@/lib/support/inbox", () => ({
   isInboxConfigured: () => true,
+  isInboxEnvironment: () => mocks.production(),
   getReceivedEmail: mocks.getReceivedEmail,
 }));
-vi.mock("@/lib/support/tickets", () => ({
+vi.mock("@/lib/support/import", () => ({
   importReceivedEmail: mocks.importReceivedEmail,
 }));
 
@@ -31,6 +33,7 @@ describe("Resend inbound webhook", () => {
     vi.clearAllMocks();
     vi.stubEnv("RESEND_INBOUND_WEBHOOK_SECRET", "whsec_x");
     mocks.valid.mockReturnValue(true);
+    mocks.production.mockReturnValue(true);
     mocks.getReceivedEmail.mockResolvedValue({ id: "abc" });
     mocks.importReceivedEmail.mockResolvedValue(null);
   });
@@ -66,6 +69,20 @@ describe("Resend inbound webhook", () => {
     });
 
     expect(response.status).toBe(500);
+  });
+
+  it("acknowledges and ignores the call outside production", async () => {
+    mocks.production.mockReturnValue(false);
+
+    const response = await post({
+      type: "email.received",
+      data: { email_id: "abc" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ignored: true });
+    expect(mocks.getReceivedEmail).not.toHaveBeenCalled();
+    expect(mocks.importReceivedEmail).not.toHaveBeenCalled();
   });
 
   it("is off without its secret", async () => {

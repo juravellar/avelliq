@@ -13,7 +13,9 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@/components/ui/page-container";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import { inClinicTimezone } from "@/helpers/time";
+import { pageNumber } from "@/lib/pagination";
 import { resolvePlan } from "@/lib/plans";
 import { getServerSession } from "@/lib/server-session";
 import {
@@ -22,7 +24,6 @@ import {
   ACCOUNTS_PAGE_SIZE,
   countDeletionRequests,
   listAccounts,
-  pageNumber,
 } from "@/lib/support/accounts";
 import {
   canBlock,
@@ -250,37 +251,11 @@ const AccountsPage = async ({ searchParams }: AccountsPageProps) => {
           </ul>
         )}
 
-        {pages > 1 && (
-          <div className="flex items-center justify-between gap-2">
-            {page > 1 ? (
-              <Button variant="outline" asChild>
-                <Link
-                  href={pageHref(search, page - 1, filter)}
-                  prefetch={false}
-                >
-                  Anterior
-                </Link>
-              </Button>
-            ) : (
-              <span />
-            )}
-            <span className="text-muted-foreground text-sm">
-              Página {page} de {pages}
-            </span>
-            {page < pages ? (
-              <Button variant="outline" asChild>
-                <Link
-                  href={pageHref(search, page + 1, filter)}
-                  prefetch={false}
-                >
-                  Próxima
-                </Link>
-              </Button>
-            ) : (
-              <span />
-            )}
-          </div>
-        )}
+        <PaginationLinks
+          page={page}
+          pages={pages}
+          href={(target) => pageHref(search, target, filter)}
+        />
       </PageContent>
     </PageContainer>
   );

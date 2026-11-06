@@ -38,6 +38,15 @@ describe("phoneDigits", () => {
   it("keeps only the digits", () => {
     expect(phoneDigits("(11) 3333-4444")).toBe("1133334444");
   });
+
+  it("drops the country code of a pasted number", () => {
+    expect(phoneDigits("+55 11 98765-4321")).toBe("11987654321");
+    expect(phoneDigits("+55 (11) 3333-4444")).toBe("1133334444");
+  });
+
+  it("keeps an area code 55 that is not a country code", () => {
+    expect(phoneDigits("(55) 99999-9999")).toBe("55999999999");
+  });
 });
 
 describe("isAcceptablePhone", () => {
@@ -58,6 +67,20 @@ describe("isValidPhone", () => {
 });
 
 describe("editPhone", () => {
+  it("strips the country code of a paste over a selected full number", () => {
+    expect(
+      editPhone("(11) 99999-9999", "+55 11 3456-7890", 16, {
+        hadSelection: true,
+      }).digits,
+    ).toBe("1134567890");
+  });
+
+  it("doesn't take an area code 55 for a country code when typing", () => {
+    expect(editPhone("(55) 99999-9999", "(55) 99999-99991", 16).digits).toBe(
+      "55999999999",
+    );
+  });
+
   it("erases the digit before a separator erased with backspace", () => {
     // "(11) 3333-|4444" → backspace removes the "-"
     expect(editPhone("(11) 3333-4444", "(11) 33334444", 9)).toEqual({

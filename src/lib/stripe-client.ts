@@ -25,5 +25,6 @@ export const stripeClient = (mode: StripeMode) => {
   if (!key) {
     throw new Error(`${SECRET_KEY_ENV[mode]} is not set`);
   }
-  return new Stripe(key, { apiVersion: STRIPE_API_VERSION });
+  // The default is 80s, and checkout calls Stripe holding the user's lock.
+  return new Stripe(key, { apiVersion: STRIPE_API_VERSION, timeout: 15_000 });
 };

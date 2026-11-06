@@ -1,13 +1,14 @@
 "use client";
 
+import "dayjs/locale/pt-br";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import dayjs from "dayjs";
 import { CalendarIcon } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
 import { useCallback, useEffect, useState } from "react";
+import { ptBR } from "react-day-picker/locale";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -73,6 +74,10 @@ const formSchema = z.object({
   }),
 });
 
+// The day the user clicked, from the picker's local calendar parts. It travels
+// as YYYY-MM-DD so the server decides the instant, in clinic time.
+const pickedDay = (date: Date) => dayjs(date).format("YYYY-MM-DD");
+
 interface UpsertAppointmentFormProps {
   isOpen: boolean;
   patients: PatientOption[];
@@ -137,7 +142,11 @@ const UpsertAppointmentForm = ({
         patientId: appointment.patientId,
         doctorId: appointment.doctorId,
         appointmentPrice: appointment.appointmentPriceInCents / 100,
-        date: appointment.date,
+        // The picker works in the browser's calendar, so the clinic's day is
+        // turned into that day's local midnight.
+        date: dayjs(
+          inClinicTimezone(appointment.date).format("YYYY-MM-DD"),
+        ).toDate(),
         time: inClinicTimezone(appointment.date).format("HH:mm:ss"),
       };
     }
@@ -176,7 +185,7 @@ const UpsertAppointmentForm = ({
     ],
     queryFn: async () =>
       getAvailableTimes({
-        date: dayjs(selectedDate).format("YYYY-MM-DD"),
+        date: pickedDay(selectedDate),
         doctorId: selectedDoctorId,
         ignoreAppointmentId: appointment?.id,
       }),
@@ -218,6 +227,7 @@ const UpsertAppointmentForm = ({
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     upsertAppointmentAction.execute({
       ...values,
+      date: pickedDay(values.date),
       id: appointment?.id,
       appointmentPriceInCents: reaisToCents(values.appointmentPrice),
     });
@@ -366,7 +376,9 @@ const UpsertAppointmentForm = ({
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {field.value ? (
-                          format(field.value, "PPP", { locale: ptBR })
+                          dayjs(field.value)
+                            .locale("pt-br")
+                            .format("D [de] MMMM [de] YYYY")
                         ) : (
                           <span>Selecione uma data</span>
                         )}

@@ -28,6 +28,8 @@ vi.mock("@/db", () => ({
 
 import { setStaffRole } from ".";
 
+const fresh = { createdAt: new Date() };
+
 const owner = {
   id: "owner",
   email: "principal@avelliq.com",
@@ -50,7 +52,7 @@ describe("setStaffRole", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("SUPPORT_ADMIN_EMAILS", "principal@avelliq.com");
-    mocks.getSession.mockResolvedValue({ user: owner });
+    mocks.getSession.mockResolvedValue({ user: owner, session: fresh });
     mocks.findAccount.mockResolvedValue(account);
   });
 
@@ -81,8 +83,20 @@ describe("setStaffRole", () => {
     );
   });
 
+  it("refuses when the sign-in is older than 10 minutes", async () => {
+    mocks.getSession.mockResolvedValue({
+      user: owner,
+      session: { createdAt: new Date(Date.now() - 11 * 60 * 1000) },
+    });
+
+    const result = await setStaffRole({ userId: "u1", role: "admin" });
+
+    expect(result?.serverError).toContain("saia e entre de novo");
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
   it("lets an admin add and remove support", async () => {
-    mocks.getSession.mockResolvedValue({ user: admin });
+    mocks.getSession.mockResolvedValue({ user: admin, session: fresh });
     await setStaffRole({ userId: "u1", role: "support" });
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({ staffRole: "support" }),
@@ -103,7 +117,7 @@ describe("setStaffRole", () => {
   });
 
   it("doesn't let an admin make admins or change one", async () => {
-    mocks.getSession.mockResolvedValue({ user: admin });
+    mocks.getSession.mockResolvedValue({ user: admin, session: fresh });
     expect(
       (await setStaffRole({ userId: "u1", role: "admin" }))?.serverError,
     ).toMatch(/conta principal/);
@@ -125,7 +139,7 @@ describe("setStaffRole", () => {
     expect(
       (await setStaffRole({ userId: "u2", role: "support" }))?.serverError,
     ).toBe("Acesso negado.");
-    mocks.getSession.mockResolvedValue({ user: account });
+    mocks.getSession.mockResolvedValue({ user: account, session: fresh });
     expect(
       (await setStaffRole({ userId: "u2", role: "support" }))?.serverError,
     ).toBe("Acesso negado.");

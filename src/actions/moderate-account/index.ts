@@ -11,6 +11,7 @@ import { deletionPreview } from "@/lib/account-data";
 import { UserFacingError } from "@/lib/action-errors";
 import { recordAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
+import { isFreshSession } from "@/lib/fresh-session";
 import { actionClient } from "@/lib/next-safe-action";
 import { BillingNotCancelledError, removeAccount } from "@/lib/remove-account";
 import { findAccount } from "@/lib/support/accounts";
@@ -46,7 +47,7 @@ const load = async (
   if (!allowed(session.user, account)) {
     throw new UserFacingError("Acesso negado.");
   }
-  return { viewer: session.user, account };
+  return { viewer: session.user, session: session.session, account };
 };
 
 const done = () => revalidatePath("/contas");
@@ -87,6 +88,16 @@ export const unblockAccount = actionClient
   .schema(accountInput)
   .action(async ({ parsedInput }) => {
     const { viewer, account } = await load(parsedInput.userId, canBlock);
+    // An admin can't undo a block an owner put on. blockedBy is a user id, so
+    // the blocker is looked up to see whether they are an owner.
+    if (account.blockedBy && !isSupportOwner(viewer)) {
+      const blocker = await findAccount(account.blockedBy);
+      if (isSupportOwner(blocker)) {
+        throw new UserFacingError(
+          "Só uma conta principal desbloqueia uma conta bloqueada por outra conta principal.",
+        );
+      }
+    }
     await db.transaction(async (tx) => {
       await tx
         .update(usersTable)
@@ -192,10 +203,15 @@ export const getDeletionPreview = actionClient
 export const deleteAccountAsOwner = actionClient
   .schema(accountInput.extend({ confirmEmail: z.string() }))
   .action(async ({ parsedInput }) => {
-    const { viewer, account } = await load(
+    const { viewer, session, account } = await load(
       parsedInput.userId,
       canDeleteAccount,
     );
+    if (!isFreshSession(session)) {
+      throw new UserFacingError(
+        "Por segurança, saia e entre de novo para fazer esta ação.",
+      );
+    }
     if (
       parsedInput.confirmEmail.trim().toLowerCase() !==
       account.email.toLowerCase()

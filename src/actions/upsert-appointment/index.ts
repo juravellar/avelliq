@@ -1,17 +1,13 @@
 "use server";
 
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, lt, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { isUniqueViolation, withClinicLock } from "@/db/clinic-lock";
 import { appointmentsTable, patientsTable } from "@/db/schema";
 import { priceInCentsSchema } from "@/helpers/currency";
-import {
-  clinicDateTimeToDate,
-  clinicMonthRange,
-  inClinicTimezone,
-} from "@/helpers/time";
+import { clinicDateTimeToDate, clinicMonthRange } from "@/helpers/time";
 import { UserFacingError } from "@/lib/action-errors";
 import { recordAudit } from "@/lib/audit";
 import { computeAvailableTimes } from "@/lib/available-times";
@@ -28,7 +24,7 @@ export const upsertAppointment = clinicWriteActionClient
       id: z.string().uuid().optional(),
       patientId: z.string().uuid(),
       doctorId: z.string().uuid(),
-      date: z.date(),
+      date: z.string().date(), // YYYY-MM-DD, the day picked in the clinic
       time: z.string(),
       appointmentPriceInCents: priceInCentsSchema(
         "Valor da consulta é obrigatório.",
@@ -37,9 +33,7 @@ export const upsertAppointment = clinicWriteActionClient
   )
   .action(async ({ parsedInput, ctx }) => {
     const clinicId = ctx.clinic.id;
-    const appointmentDay = inClinicTimezone(parsedInput.date).format(
-      "YYYY-MM-DD",
-    );
+    const appointmentDay = parsedInput.date;
     try {
       await withClinicLock(clinicId, async (tx) => {
         const patient = await tx.query.patientsTable.findFirst({
@@ -49,6 +43,7 @@ export const upsertAppointment = clinicWriteActionClient
           throw new Error("Paciente não encontrado");
         }
 
+        let storedDate: Date | null = null;
         if (parsedInput.id) {
           const appointment = await tx.query.appointmentsTable.findFirst({
             where: eq(appointmentsTable.id, parsedInput.id),
@@ -56,6 +51,7 @@ export const upsertAppointment = clinicWriteActionClient
           if (!appointment || appointment.clinicId !== clinicId) {
             throw new Error("Agendamento não encontrado");
           }
+          storedDate = appointment.date;
         }
 
         const availableTimes = await computeAvailableTimes(tx, {
@@ -75,6 +71,30 @@ export const upsertAppointment = clinicWriteActionClient
           appointmentDay,
           parsedInput.time,
         );
+
+        // Creating, or moving an appointment into another month, adds one to
+        // that month's count. An edit inside the same month changes nothing.
+        const { start, end } = clinicMonthRange(appointmentDay);
+        const isSameMonth =
+          storedDate !== null && storedDate >= start && storedDate < end;
+        if (!isSameMonth) {
+          const appointmentsInMonth = await tx.$count(
+            appointmentsTable,
+            and(
+              eq(appointmentsTable.clinicId, clinicId),
+              gte(appointmentsTable.date, start),
+              lt(appointmentsTable.date, end),
+              parsedInput.id
+                ? ne(appointmentsTable.id, parsedInput.id)
+                : undefined,
+            ),
+          );
+          ensurePlanAllows(
+            resolvePlan(ctx.user.plan),
+            "appointmentsPerMonth",
+            appointmentsInMonth,
+          );
+        }
 
         if (parsedInput.id) {
           await tx
@@ -98,20 +118,6 @@ export const upsertAppointment = clinicWriteActionClient
           return;
         }
 
-        const { start, end } = clinicMonthRange(appointmentDay);
-        const appointmentsInMonth = await tx.$count(
-          appointmentsTable,
-          and(
-            eq(appointmentsTable.clinicId, clinicId),
-            gte(appointmentsTable.date, start),
-            lt(appointmentsTable.date, end),
-          ),
-        );
-        ensurePlanAllows(
-          resolvePlan(ctx.user.plan),
-          "appointmentsPerMonth",
-          appointmentsInMonth,
-        );
         const [created] = await tx
           .insert(appointmentsTable)
           .values({

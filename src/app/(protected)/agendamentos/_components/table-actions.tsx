@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { appointmentsTable, doctorsTable } from "@/db/schema";
+import { actionErrorMessage } from "@/lib/action-errors";
 
 import UpsertAppointmentForm from "./add-appointment-form";
 import type { PatientOption } from "./patient-option";
@@ -52,7 +53,11 @@ export function AppointmentsTableActions({
   const handleDeleteAppointmentClick = async () => {
     setIsDeleting(true);
     try {
-      await deleteAppointment({ id: appointment.id });
+      const result = await deleteAppointment({ id: appointment.id });
+      if (result?.serverError || result?.validationErrors) {
+        toast.error(actionErrorMessage(result, "Erro ao deletar agendamento."));
+        return;
+      }
       toast.success("Agendamento deletado com sucesso.");
     } catch {
       toast.error("Erro ao deletar agendamento.");
