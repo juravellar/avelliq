@@ -1,6 +1,6 @@
 {
-  "id": "d657f7dd-89a7-4b7c-bb4b-8f351c5a2df6",
-  "prevId": "934dc4fa-d392-4215-8d7e-2b8c964611bb",
+  "id": "e6c3b80e-3ca9-4b0e-ab14-633c0d297c7a",
+  "prevId": "a88668d3-d217-4a70-a98b-a73bbe369c72",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -470,6 +470,50 @@
           "primaryKey": false,
           "notNull": false
         },
+        "crm_number": {
+          "name": "crm_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "crm_state": {
+          "name": "crm_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rqe": {
+          "name": "rqe",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accepts_private": {
+          "name": "accepts_private",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "health_insurances": {
+          "name": "health_insurances",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "available_from_week_day": {
           "name": "available_from_week_day",
           "type": "integer",
@@ -533,6 +577,34 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doctors_clinic_crm_unique": {
+          "name": "doctors_clinic_crm_unique",
+          "columns": [
+            {
+              "expression": "clinic_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "crm_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "crm_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"doctors\".\"crm_number\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1407,6 +1479,32 @@
           "tableTo": "clinics",
           "columnsFrom": [
             "active_clinic_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "users_blocked_by_users_id_fk": {
+          "name": "users_blocked_by_users_id_fk",
+          "tableFrom": "users",
+          "tableTo": "users",
+          "columnsFrom": [
+            "blocked_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "users_deletion_requested_by_users_id_fk": {
+          "name": "users_deletion_requested_by_users_id_fk",
+          "tableFrom": "users",
+          "tableTo": "users",
+          "columnsFrom": [
+            "deletion_requested_by"
           ],
           "columnsTo": [
             "id"

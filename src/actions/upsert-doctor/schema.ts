@@ -1,6 +1,8 @@
 import { z } from "zod";
 
+import { BRAZILIAN_STATES, onlyDigits } from "@/helpers/cpf";
 import { priceInCentsSchema } from "@/helpers/currency";
+import { isValidPhone } from "@/helpers/phone";
 
 // Shared with the client form, whose fields have a different shape.
 export const timeRangeRule = {
@@ -10,6 +12,130 @@ export const timeRangeRule = {
 
 // HH:mm or HH:mm:ss; the form sends HH:mm:ss.
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+
+export const MAX_HEALTH_INSURANCES = 30;
+
+// Plans offered as suggestions while typing; any other can still be typed.
+// National ones first, then the doctor's state's own (state public-servant
+// plans and strong regional operators), so a doctor in GO sees Ipasgo.
+const NATIONAL_HEALTH_INSURANCES = [
+  "Allianz Saúde",
+  "Amil",
+  "Bradesco Saúde",
+  "Care Plus",
+  "Cassi",
+  "Geap",
+  "Golden Cross",
+  "Hapvida",
+  "Mediservice",
+  "NotreDame Intermédica",
+  "Omint",
+  "Porto Saúde",
+  "Postal Saúde",
+  "Prevent Senior",
+  "Saúde Caixa",
+  "SulAmérica",
+  "Unimed",
+];
+
+const REGIONAL_HEALTH_INSURANCES: Record<string, string[]> = {
+  AL: ["Ipaseal Saúde"],
+  BA: ["Planserv"],
+  CE: ["Issec"],
+  DF: ["GDF Saúde (Inas)"],
+  GO: ["Ipasgo Saúde"],
+  MG: ["IPSEMG", "Cemig Saúde"],
+  MS: ["Cassems"],
+  MT: ["MT Saúde"],
+  PA: ["Iasep"],
+  PE: ["Sassepe"],
+  PI: ["Iapep Saúde"],
+  PR: ["Clinipam", "Paraná Clínicas"],
+  RJ: ["Assim Saúde", "Leve Saúde"],
+  RS: ["IPE Saúde", "Cabergs"],
+  SC: ["SC Saúde"],
+  SE: ["Ipes Saúde"],
+  SP: ["Iamspe", "Cabesp"],
+  TO: ["Plansaúde"],
+};
+
+// The suggestions for a doctor registered in `state` (the CRM's UF): the
+// state's own plans first, since those are the ones people look for.
+export const healthInsuranceSuggestions = (state?: string | null) => [
+  ...(state ? (REGIONAL_HEALTH_INSURANCES[state] ?? []) : []),
+  ...NATIONAL_HEALTH_INSURANCES,
+];
+
+// The professional and contact details, all optional so doctors saved before
+// they existed stay valid. Shared by the form and the server action.
+export const doctorDetailsSchema = z.object({
+  crmNumber: z
+    .string()
+    .optional()
+    .refine((value) => !value || /^\d{4,7}$/.test(onlyDigits(value)), {
+      message: "CRM inválido: use de 4 a 7 números.",
+    }),
+  crmState: z
+    .string()
+    .optional()
+    .refine(
+      (value) =>
+        !value || (BRAZILIAN_STATES as readonly string[]).includes(value),
+      { message: "UF inválida." },
+    ),
+  rqe: z
+    .string()
+    .optional()
+    .refine((value) => !value || /^\d{1,10}$/.test(onlyDigits(value)), {
+      message: "RQE inválido.",
+    }),
+  phoneNumber: z
+    .string()
+    .optional()
+    .refine((value) => !value || isValidPhone(value), {
+      message: "Telefone inválido.",
+    }),
+  email: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || z.string().email().safeParse(value).success, {
+      message: "E-mail inválido.",
+    }),
+  acceptsPrivate: z.boolean().default(true),
+  healthInsurances: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1)
+        .max(60, { message: "Use até 60 caracteres por convênio." }),
+    )
+    .max(MAX_HEALTH_INSURANCES, {
+      message: `Informe até ${MAX_HEALTH_INSURANCES} convênios.`,
+    })
+    .default([]),
+});
+
+type DoctorDetails = z.output<typeof doctorDetailsSchema>;
+
+// Rules across fields, for the form and the action alike.
+export const doctorDetailsProblems = (details: DoctorDetails) => {
+  const problems: { path: keyof DoctorDetails; message: string }[] = [];
+  if (Boolean(details.crmNumber) !== Boolean(details.crmState)) {
+    problems.push({
+      path: details.crmNumber ? "crmState" : "crmNumber",
+      message: "Informe o número e a UF do CRM.",
+    });
+  }
+  if (!details.acceptsPrivate && details.healthInsurances.length === 0) {
+    problems.push({
+      path: "healthInsurances",
+      message: "Informe os convênios aceitos ou marque que atende particular.",
+    });
+  }
+  return problems;
+};
 
 export const upsertDoctorSchema = z
   .object({
@@ -38,10 +164,48 @@ export const upsertDoctorSchema = z
       .min(1, { message: "Hora de término é obrigatória." })
       .regex(TIME_PATTERN, { message: "Hora de término inválida." }),
   })
-  .refine(
-    (data) =>
-      timeRangeRule.isValid(data.availableFromTime, data.availableToTime),
-    { message: timeRangeRule.message, path: ["availableToTime"] },
-  );
+  .merge(doctorDetailsSchema)
+  .superRefine((data, ctx) => {
+    if (!timeRangeRule.isValid(data.availableFromTime, data.availableToTime)) {
+      ctx.addIssue({
+        code: "custom",
+        message: timeRangeRule.message,
+        path: ["availableToTime"],
+      });
+    }
+    for (const problem of doctorDetailsProblems(data)) {
+      ctx.addIssue({
+        code: "custom",
+        message: problem.message,
+        path: [problem.path],
+      });
+    }
+  });
 
 export type UpsertDoctorSchema = z.infer<typeof upsertDoctorSchema>;
+
+const orNull = (value: string | undefined) => value?.trim() || null;
+const digitsOrNull = (value: string | undefined) =>
+  value ? onlyDigits(value) || null : null;
+
+// The columns to store: empty fields become null, CRM, RQE and phone keep
+// only their digits, and repeated plans are dropped.
+export const doctorDetailColumns = (details: DoctorDetails) => ({
+  crmNumber: digitsOrNull(details.crmNumber),
+  crmState: orNull(details.crmState),
+  rqe: digitsOrNull(details.rqe),
+  phoneNumber: digitsOrNull(details.phoneNumber),
+  email: orNull(details.email)?.toLowerCase() ?? null,
+  acceptsPrivate: details.acceptsPrivate,
+  healthInsurances: details.healthInsurances
+    .map((name) => name.trim())
+    .filter(
+      (name, index, names) =>
+        name &&
+        names.findIndex(
+          (other) =>
+            other.toLocaleLowerCase("pt-BR") ===
+            name.toLocaleLowerCase("pt-BR"),
+        ) === index,
+    ),
+});

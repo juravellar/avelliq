@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  BadgeCheckIcon,
   CalendarIcon,
   ClockIcon,
   DollarSignIcon,
+  HeartHandshakeIcon,
   TrashIcon,
 } from "lucide-react";
 import { useAction } from "next-safe-action/hooks";
@@ -38,6 +40,14 @@ import { formatCurrencyInCents } from "@/helpers/currency";
 
 import { getAvailability } from "../_helpers/availability";
 import UpsertDoctorForm from "./upsert-doctor-form";
+
+// "Unimed, Amil e mais 2", or "Sem convênios".
+const insurancesLabel = (names: string[]) =>
+  names.length === 0
+    ? "Sem convênios"
+    : names.length <= 2
+      ? names.join(", ")
+      : `${names.slice(0, 2).join(", ")} e mais ${names.length - 2}`;
 
 interface DoctorCardProps {
   doctor: typeof doctorsTable.$inferSelect;
@@ -78,6 +88,13 @@ const DoctorCard = ({ doctor }: DoctorCardProps) => {
             <p className="text-muted-foreground truncate text-sm">
               {doctor.specialty}
             </p>
+            {doctor.crmNumber && (
+              <p className="text-muted-foreground flex items-center gap-1 truncate text-xs">
+                <BadgeCheckIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                CRM {doctor.crmNumber}/{doctor.crmState}
+                {doctor.rqe ? ` · RQE ${doctor.rqe}` : ""}
+              </p>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -97,10 +114,23 @@ const DoctorCard = ({ doctor }: DoctorCardProps) => {
             {availability.to.format("HH:mm")}
           </span>
         </Badge>
-        <Badge variant="outline" className="max-w-full truncate">
-          <DollarSignIcon className="mr-1" />
+        {doctor.acceptsPrivate && (
+          <Badge variant="outline" className="max-w-full truncate">
+            <DollarSignIcon className="mr-1" />
+            <span className="truncate">
+              Particular ·{" "}
+              {formatCurrencyInCents(doctor.appointmentPriceInCents)}
+            </span>
+          </Badge>
+        )}
+        <Badge
+          variant="outline"
+          className="max-w-full truncate"
+          title={doctor.healthInsurances.join(", ") || undefined}
+        >
+          <HeartHandshakeIcon className="mr-1" />
           <span className="truncate">
-            {formatCurrencyInCents(doctor.appointmentPriceInCents)}
+            {insurancesLabel(doctor.healthInsurances)}
           </span>
         </Badge>
       </CardContent>

@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { withClinicLock } from "@/db/clinic-lock";
+import { isUniqueViolation, withClinicLock } from "@/db/clinic-lock";
 import { doctorsTable } from "@/db/schema";
 import { clinicTimeToUtc } from "@/helpers/time";
 import { UserFacingError } from "@/lib/action-errors";
@@ -12,7 +12,7 @@ import { clinicWriteActionClient } from "@/lib/clinic-action";
 import { ensurePlanAllows } from "@/lib/plan-limits";
 import { resolvePlan } from "@/lib/plans";
 
-import { upsertDoctorSchema } from "./schema";
+import { doctorDetailColumns, upsertDoctorSchema } from "./schema";
 
 export const upsertDoctor = clinicWriteActionClient
   .schema(upsertDoctorSchema)
@@ -40,27 +40,35 @@ export const upsertDoctor = clinicWriteActionClient
         ensurePlanAllows(resolvePlan(ctx.user.plan), "doctors", doctorCount);
       }
 
-      const availableFromTime = clinicTimeToUtc(parsedInput.availableFromTime);
-      const availableToTime = clinicTimeToUtc(parsedInput.availableToTime);
+      const columns = {
+        name: parsedInput.name,
+        specialty: parsedInput.specialty,
+        appointmentPriceInCents: parsedInput.appointmentPriceInCents,
+        availableFromWeekDay: parsedInput.availableFromWeekDay,
+        availableToWeekDay: parsedInput.availableToWeekDay,
+        availableFromTime: clinicTimeToUtc(parsedInput.availableFromTime),
+        availableToTime: clinicTimeToUtc(parsedInput.availableToTime),
+        ...doctorDetailColumns(parsedInput),
+      };
 
       const [saved] = await tx
         .insert(doctorsTable)
-        .values({
-          ...parsedInput,
-          clinicId,
-          availableFromTime,
-          availableToTime,
-        })
+        .values({ ...columns, id: parsedInput.id, clinicId })
         .onConflictDoUpdate({
           target: [doctorsTable.id],
           setWhere: eq(doctorsTable.clinicId, clinicId),
-          set: {
-            ...parsedInput,
-            availableFromTime,
-            availableToTime,
-          },
+          set: columns,
         })
-        .returning({ id: doctorsTable.id });
+        .returning({ id: doctorsTable.id })
+        .catch((error) => {
+          // doctors_clinic_crm_unique: another doctor of the clinic has it.
+          if (isUniqueViolation(error)) {
+            throw new UserFacingError(
+              "Já existe um médico com este CRM nesta clínica.",
+            );
+          }
+          throw error;
+        });
       await recordAudit(
         {
           userId: ctx.user.id,

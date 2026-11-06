@@ -241,4 +241,82 @@ describe("upsertDoctor", () => {
     expect(result?.serverError).toBeUndefined();
     expect(mocks.values).toHaveBeenCalledOnce();
   });
+
+  it("stores the professional details cleaned up", async () => {
+    mocks.findDoctor.mockResolvedValue(undefined);
+
+    await upsertDoctor({
+      ...input,
+      crmNumber: "123.456",
+      crmState: "SP",
+      rqe: " 7788 ",
+      phoneNumber: "(11) 98888-7777",
+      email: " Ana@Clinica.com ",
+      acceptsPrivate: false,
+      healthInsurances: ["Unimed", " unimed ", "Amil"],
+    });
+
+    expect(mocks.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        crmNumber: "123456",
+        crmState: "SP",
+        rqe: "7788",
+        phoneNumber: "11988887777",
+        email: "ana@clinica.com",
+        acceptsPrivate: false,
+        healthInsurances: ["Unimed", "Amil"],
+      }),
+    );
+  });
+
+  it("keeps doctors without the new details valid", async () => {
+    mocks.findDoctor.mockResolvedValue(undefined);
+
+    await upsertDoctor(input);
+
+    expect(mocks.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        crmNumber: null,
+        crmState: null,
+        acceptsPrivate: true,
+        healthInsurances: [],
+      }),
+    );
+  });
+
+  it("asks for both CRM number and state, and for some way to pay", async () => {
+    const noState = await upsertDoctor({ ...input, crmNumber: "123456" });
+    expect(noState?.validationErrors?.crmState?._errors?.[0]).toContain(
+      "número e a UF",
+    );
+
+    const nobody = await upsertDoctor({
+      ...input,
+      acceptsPrivate: false,
+      healthInsurances: [],
+    });
+    expect(JSON.stringify(nobody?.validationErrors)).toContain(
+      "Informe os convênios aceitos",
+    );
+    expect(mocks.values).not.toHaveBeenCalled();
+  });
+
+  it("explains a CRM already used by another doctor of the clinic", async () => {
+    mocks.findDoctor.mockResolvedValue(undefined);
+    mocks.onConflictDoUpdate.mockReturnValueOnce({
+      returning: async () => {
+        throw Object.assign(new Error("duplicate key"), { code: "23505" });
+      },
+    });
+
+    const result = await upsertDoctor({
+      ...input,
+      crmNumber: "123456",
+      crmState: "SP",
+    });
+
+    expect(result?.serverError).toBe(
+      "Já existe um médico com este CRM nesta clínica.",
+    );
+  });
 });
