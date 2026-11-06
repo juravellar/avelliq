@@ -91,42 +91,51 @@ const isDuplicate = (error: unknown) =>
   (error as { code?: string })?.code === "23505" ||
   (error as { cause?: { code?: string } })?.cause?.code === "23505";
 
-// The ticket an e-mail continues: the protocol in its subject, else the
-// e-mails it answers. Only when it comes from the ticket's own customer, so
-// a stranger can't write into someone else's ticket by copying a protocol.
-const findTicketFor = async (email: ReceivedEmail, sender: string) => {
+// The ticket whose protocol is in the subject, and the ticket of the e-mails
+// this one answers. Only when it comes from the ticket's own customer, so a
+// stranger can't write into someone else's ticket by copying a protocol.
+const ticketWithProtocol = async (email: ReceivedEmail, sender: string) => {
   const number = parseProtocol(email.subject);
-  if (number !== null) {
-    const ticket = await db.query.supportTicketsTable.findFirst({
-      where: eq(supportTicketsTable.number, number),
-    });
-    if (ticket?.customerEmail === sender) {
-      return ticket;
-    }
+  if (number === null) {
+    return null;
   }
-  const references = referencedMessageIds(email);
-  if (references.length) {
-    const [match] = await db
-      .select({ ticket: supportTicketsTable })
-      .from(supportMessagesTable)
-      .innerJoin(
-        supportTicketsTable,
-        eq(supportMessagesTable.ticketId, supportTicketsTable.id),
-      )
-      .where(
-        and(
-          inArray(supportMessagesTable.messageId, references),
-          eq(supportTicketsTable.customerEmail, sender),
-        ),
-      )
-      .orderBy(desc(supportMessagesTable.createdAt))
-      .limit(1);
-    if (match) {
-      return match.ticket;
-    }
-  }
-  return null;
+  const ticket = await db.query.supportTicketsTable.findFirst({
+    where: eq(supportTicketsTable.number, number),
+  });
+  return ticket?.customerEmail === sender ? ticket : null;
 };
+
+const ticketAnswered = async (email: ReceivedEmail, sender: string) => {
+  const references = referencedMessageIds(email);
+  if (!references.length) {
+    return null;
+  }
+  const [match] = await db
+    .select({ ticket: supportTicketsTable })
+    .from(supportMessagesTable)
+    .innerJoin(
+      supportTicketsTable,
+      eq(supportMessagesTable.ticketId, supportTicketsTable.id),
+    )
+    .where(
+      and(
+        inArray(supportMessagesTable.messageId, references),
+        eq(supportTicketsTable.customerEmail, sender),
+      ),
+    )
+    .orderBy(desc(supportMessagesTable.createdAt))
+    .limit(1);
+  return match?.ticket ?? null;
+};
+
+// Remembers an e-mail that won't be stored, by hash like a deleted ticket's:
+// the sync would otherwise fetch it again on every visit, and enough of them
+// would take up each batch, holding back the newer e-mails.
+const ignoreEmail = (id: string) =>
+  db
+    .insert(supportDeletedEmailsTable)
+    .values({ resendEmailIdHash: emailIdHash(id) })
+    .onConflictDoNothing();
 
 // The help form's notice comes back into the inbox; it belongs to the
 // ticket the form already opened. Without the signed header (lost on the
@@ -150,6 +159,7 @@ const linkFormNotice = async (email: ReceivedEmail) => {
     // Our own signature, so the notice is genuine: its ticket is gone
     // (account deleted or retention) and the notice must not come back as a
     // new ticket.
+    await ignoreEmail(email.id);
     return true;
   }
   if (ticket?.source !== "form") {
@@ -230,6 +240,7 @@ export const importReceivedEmail = async (
   // header, whose ticket already exists, or a forgery. Neither is a customer,
   // and a ticket with our own address as the customer can't be answered.
   if (customer === normalized(process.env.EMAIL_FROM ?? "")) {
+    await ignoreEmail(email.id);
     return null;
   }
   const fullBody = email.text?.trim() || htmlToText(email.html ?? "");
@@ -245,13 +256,17 @@ export const importReceivedEmail = async (
     hadAttachments: (email.attachments?.length ?? 0) > 0,
     createdAt: receivedAt,
   };
-  const match = await findTicketFor(email, customer);
-  // Only a DMARC pass proves the From is who it says. A forged From fails it;
-  // domains without a DMARC policy ("gray") and mail received before Resend
-  // checked prove nothing. None of them may join a customer's ticket by
-  // copying its protocol.
-  const unverified = email.authentication?.dmarc !== "pass";
-  const previous = unverified ? null : match;
+  // Only a DMARC pass proves the From is who it says, and a forged From fails
+  // it. Domains without a DMARC policy ("gray") and mail received before Resend
+  // checked prove nothing, and protocols are sequential, so copying one isn't
+  // enough for them. Answering the customer's own e-mail is: its Message-ID
+  // can't be guessed, and those domains' replies stay in the conversation.
+  const dmarc = email.authentication?.dmarc;
+  const byProtocol = await ticketWithProtocol(email, customer);
+  const byThread = await ticketAnswered(email, customer);
+  const claimed = byProtocol ?? byThread;
+  const previous =
+    dmarc === "pass" ? claimed : dmarc === "fail" ? null : byThread;
   // Out-of-office replies and the like answer the team's own e-mail, not the
   // team's turn: they are kept in the conversation, but never ask for an
   // answer, reopen a finished ticket or start a new one.
@@ -315,11 +330,11 @@ export const importReceivedEmail = async (
           body: `Resposta ao protocolo ${protocolOf(target.number)}, que já estava finalizado. Este novo atendimento continua a conversa.`,
           createdAt: receivedAt,
         });
-      } else if (unverified && match) {
+      } else if (!previous && claimed) {
         await tx.insert(supportMessagesTable).values({
           ticketId: ticket.id,
           author: "system",
-          body: `Este e-mail diz responder ao protocolo ${protocolOf(match.number)}, mas não foi possível confirmar o remetente (DMARC). Por isso não foi juntado àquele atendimento: confirme com o cliente antes de agir.`,
+          body: `Este e-mail diz responder ao protocolo ${protocolOf(claimed.number)}, mas não foi possível confirmar o remetente (DMARC). Por isso não foi juntado àquele atendimento: confirme com o cliente antes de agir.`,
           createdAt: receivedAt,
         });
       }

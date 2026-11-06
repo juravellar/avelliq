@@ -433,7 +433,7 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
     expect(message.resendEmailId).toBeNull();
   });
 
-  it("doesn't join a reply without a DMARC pass to the ticket", async () => {
+  it("joins a reply without a DMARC pass only by the e-mail it answers", async () => {
     const { importReceivedEmail } = await load();
     const first = received({ from: customer });
     const opened = (await importReceivedEmail(first, NOW))!.ticket;
@@ -451,12 +451,41 @@ describe.skipIf(!databaseUrl)("support tickets against Postgres", () => {
         NOW,
       );
 
-      expect(reply?.opened).toBe(true);
-      expect(reply?.ticket.id).not.toBe(opened.id);
-      expect(reply?.ticket.previousTicketId).toBeNull();
-      const messages = await messagesOf(reply!.ticket.id);
+      expect(reply?.opened).toBe(false);
+      expect(reply?.ticket.id).toBe(opened.id);
+
+      const copied = await importReceivedEmail(
+        received({
+          from: customer,
+          subject: `Re: [Avelliq · Protocolo AV-${opened.number}]`,
+          authentication,
+        }),
+        NOW,
+      );
+
+      expect(copied?.opened).toBe(true);
+      expect(copied?.ticket.id).not.toBe(opened.id);
+      expect(copied?.ticket.previousTicketId).toBeNull();
+      const messages = await messagesOf(copied!.ticket.id);
       expect(messages.some(({ body }) => body?.includes("DMARC"))).toBe(true);
     }
+  });
+
+  it("doesn't fetch an ignored e-mail again on the next sync", async () => {
+    const { importReceivedEmail, syncInbox } = await load();
+    const ignored = received({
+      from: "Avelliq <nao-responda@mail.avelliq.com.br>",
+      authentication: { dmarc: "gray" },
+    });
+    expect(await importReceivedEmail(ignored, NOW)).toBeNull();
+
+    mocks.listReceivedEmails.mockResolvedValue({
+      data: [{ id: ignored.id }],
+      has_more: false,
+    });
+
+    expect(await syncInbox({ pauseMs: 0 })).toBe(0);
+    expect(mocks.getReceivedEmail).not.toHaveBeenCalled();
   });
 
   it("keys a ticket by the From, not by a Reply-To anyone can set", async () => {
