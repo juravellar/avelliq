@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getTicket: vi.fn(),
   inserted: vi.fn(),
   updated: vi.fn(),
+  commit: vi.fn(),
   audit: vi.fn(),
 }));
 vi.mock("@/lib/audit", () => ({ recordAudit: mocks.audit }));
@@ -18,22 +19,30 @@ vi.mock("@/lib/email", async (importOriginal) => ({
   sendEmail: mocks.sendEmail,
   isEmailConfigured: () => true,
 }));
-vi.mock("@/lib/support/tickets", () => ({
+vi.mock("@/lib/support/team-queries", () => ({
   getTicket: mocks.getTicket,
+}));
+vi.mock("@/lib/support/import", () => ({
   customerTicketUrl: async () =>
     "https://www.avelliq.com.br/painel?atendimento=4ef9a417",
+}));
+vi.mock("@/lib/support/tickets", () => ({
   isSupportTicket: (ticket: { source: string; inbox: string }) =>
     ticket.source === "form" || ticket.inbox === "sac@mail.avelliq.com.br",
 }));
 vi.mock("@/db", () => ({
   db: {
-    transaction: async (run: (tx: unknown) => Promise<void>) =>
-      run({
+    transaction: async (run: (tx: unknown) => Promise<void>) => {
+      await run({
         insert: () => ({ values: mocks.inserted }),
         update: () => ({
-          set: (values: unknown) => ({ where: () => mocks.updated(values) }),
+          set: (values: unknown) => ({
+            where: () => ({ returning: async () => mocks.updated(values) }),
+          }),
         }),
-      }),
+      });
+      await mocks.commit();
+    },
   },
 }));
 
@@ -82,6 +91,7 @@ describe("updateSupportTicket", () => {
     mocks.getTicket.mockResolvedValue(ticket());
     mocks.sendEmail.mockResolvedValue(undefined);
     mocks.audit.mockResolvedValue(undefined);
+    mocks.updated.mockResolvedValue([{ id: TICKET_ID }]);
   });
 
   it("answers in the thread, with the protocol, and stores the answer", async () => {
@@ -149,6 +159,19 @@ describe("updateSupportTicket", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
+  it("rejects a one-character message", async () => {
+    const result = await updateSupportTicket({
+      ticketId: TICKET_ID,
+      status: "in_review",
+      message: "a",
+    });
+
+    expect(result?.validationErrors?.message?._errors).toContain(
+      "Escreva a mensagem.",
+    );
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
   it("changes only the status, without e-mailing", async () => {
     const result = await updateSupportTicket({
       ticketId: TICKET_ID,
@@ -206,7 +229,7 @@ describe("updateSupportTicket", () => {
 
   it("says the message went out when storing it fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    mocks.inserted.mockRejectedValue(new Error("connection lost"));
+    mocks.commit.mockRejectedValue(new Error("connection lost"));
 
     const result = await updateSupportTicket({
       ticketId: TICKET_ID,
@@ -214,6 +237,35 @@ describe("updateSupportTicket", () => {
       message: "Resposta",
     });
 
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
     expect(result?.serverError).toContain("Não envie de novo");
+  });
+
+  it("sends nothing when someone finalized the ticket in the meantime", async () => {
+    mocks.updated.mockResolvedValue([]);
+
+    const result = await updateSupportTicket({
+      ticketId: TICKET_ID,
+      status: "in_review",
+      message: "Resposta",
+    });
+
+    expect(result?.serverError).toContain("acabou de ser finalizado");
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(mocks.inserted).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
+  it("stores nothing when the e-mail can't be sent", async () => {
+    mocks.sendEmail.mockRejectedValue(new Error("resend down"));
+
+    const result = await updateSupportTicket({
+      ticketId: TICKET_ID,
+      status: "in_review",
+      message: "Resposta",
+    });
+
+    expect(result?.serverError).not.toContain("Não envie de novo");
+    expect(mocks.commit).not.toHaveBeenCalled();
   });
 });

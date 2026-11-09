@@ -10,6 +10,7 @@ import { usersTable } from "@/db/schema";
 import { UserFacingError } from "@/lib/action-errors";
 import { type AuditAction, recordAudit } from "@/lib/audit";
 import { auth } from "@/lib/auth";
+import { isFreshSession } from "@/lib/fresh-session";
 import { actionClient } from "@/lib/next-safe-action";
 import { findAccount } from "@/lib/support/accounts";
 import {
@@ -41,6 +42,12 @@ export const setStaffRole = actionClient
     const managed = rolesManagedBy(session?.user);
     if (managed.length === 0) {
       throw new UserFacingError("Acesso negado.");
+    }
+    // Handing out or taking away team access needs a recent sign-in.
+    if (!isFreshSession(session?.session)) {
+      throw new UserFacingError(
+        "Por segurança, saia e entre de novo para fazer esta ação.",
+      );
     }
     const account = await findAccount(parsedInput.userId);
     if (!account) {

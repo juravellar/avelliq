@@ -1,10 +1,12 @@
 "use client";
 
-import { format, isValid, parse } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import "dayjs/locale/pt-br";
+
+import dayjs from "dayjs";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { createParser, useQueryStates } from "nuqs";
 import { DateRange } from "react-day-picker";
+import { ptBR } from "react-day-picker/locale";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -13,21 +15,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { isCalendarDay } from "@/helpers/time";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const DATE = "yyyy-MM-dd";
-
-const parseDay = (value: string) => parse(value, DATE, new Date());
+const DATE = "YYYY-MM-DD";
 
 // Dates in the URL are calendar days. nuqs' parseAsIsoDate reads them as UTC
 // midnight, which in Brazil is the evening before, so the picker showed the
 // previous day.
 const parseAsDay = createParser({
-  parse: (value) => {
-    const date = parseDay(value);
-    return isValid(date) ? date : null;
-  },
-  serialize: (date) => format(date, DATE),
+  parse: (value) => (isCalendarDay(value) ? dayjs(value).toDate() : null),
+  serialize: (date) => dayjs(date).format(DATE),
   eq: (a, b) => a.getTime() === b.getTime(),
 });
 
@@ -40,7 +38,7 @@ export function DatePicker({ from, to }: { from: string; to: string }) {
     { from: parseAsDay, to: parseAsDay },
     { shallow: false },
   );
-  const range = { from: parseDay(from), to: parseDay(to) };
+  const range = { from: dayjs(from).toDate(), to: dayjs(to).toDate() };
 
   // Both ends are written together: a start alone would be paired on the
   // server with an end that may come before it.
@@ -60,8 +58,8 @@ export function DatePicker({ from, to }: { from: string; to: string }) {
             className="justify-start text-left font-normal"
           >
             <CalendarIcon className="text-primary h-4 w-4" />
-            {format(range.from, "LLL dd, y", { locale: ptBR })} -{" "}
-            {format(range.to, "LLL dd, y", { locale: ptBR })}
+            {dayjs(range.from).locale("pt-br").format("MMM DD, YYYY")} -{" "}
+            {dayjs(range.to).locale("pt-br").format("MMM DD, YYYY")}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

@@ -34,9 +34,8 @@ export const nameOf = (value: string) => {
   return match ? match[1].trim() : addressOf(value);
 };
 
-// Where an answer goes: the Reply-To when there is one (messages from the
-// help form come from Avelliq's own address with the person in Reply-To),
-// otherwise the sender.
+// The Reply-To when there is one (messages from the help form come from
+// Avelliq's own address with the person in Reply-To), otherwise the sender.
 export const replyTarget = (email: ReceivedEmailSummary) =>
   addressOf(email.reply_to?.find(Boolean) ?? email.from);
 
@@ -44,8 +43,8 @@ const sameAddress = (a: string, b: string) =>
   addressOf(a).toLowerCase() === addressOf(b).toLowerCase();
 
 // Sent by the "Falar com a equipe" form, not by e-mail directly. The subject
-// alone can be typed by anyone, so the sender must be Avelliq's own address,
-// and when Resend checked it on arrival, a genuine one.
+// alone can be typed by anyone, so the sender must be Avelliq's own address
+// and Resend must have checked it as genuine: no result is not good enough.
 export const isHelpFormMessage = (
   email: ReceivedEmailSummary,
   formSender = process.env.EMAIL_FROM,
@@ -53,8 +52,15 @@ export const isHelpFormMessage = (
   !!formSender &&
   !!email.subject?.startsWith("[Avelliq ·") &&
   sameAddress(email.from, formSender) &&
-  // A forged From fails DMARC; Avelliq's own mail passes it.
-  (!email.authentication || email.authentication.dmarc === "pass");
+  // A forged From fails DMARC, and "gray" (no policy published) proves nothing.
+  email.authentication?.dmarc === "pass";
+
+// The customer an e-mail's ticket belongs to, and where the protocol and the
+// team's answers go. The help form's notice names the person in Reply-To; any
+// other e-mail is the From, which DMARC checks: anyone can put someone else
+// in Reply-To.
+export const customerAddress = (email: ReceivedEmailSummary) =>
+  addressOf(isHelpFormMessage(email) ? replyTarget(email) : email.from);
 
 const supportAddresses = () => [
   process.env.SUPPORT_EMAIL,
@@ -67,11 +73,6 @@ export const isSupportAddress = (
   address: string,
   support: (string | undefined)[] = supportAddresses(),
 ) => support.some((value) => !!value?.trim() && sameAddress(address, value));
-
-export const isForSupport = (
-  email: ReceivedEmailSummary,
-  support: (string | undefined)[] = supportAddresses(),
-) => email.to.some((to) => isSupportAddress(to, support));
 
 // An HTML-only e-mail as plain text, for quoting: line breaks where blocks
 // end, tags dropped, the common entities decoded.

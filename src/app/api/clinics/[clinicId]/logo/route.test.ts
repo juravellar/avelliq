@@ -20,10 +20,12 @@ describe("GET /api/clinics/[clinicId]/logo", () => {
     getServerSession.mockResolvedValue({
       user: { clinics: [{ id: "mine" }] },
     });
-    findFirst.mockResolvedValue({
-      logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
-      logoUpdatedAt: new Date(2_000),
-    });
+    // First the version, then (only if needed) the data URL itself.
+    findFirst.mockImplementation(async ({ columns }) =>
+      columns.logoDataUrl
+        ? { logoDataUrl: "data:image/png;base64,iVBORw0KGgo=" }
+        : { logoUpdatedAt: new Date(2_000) },
+    );
   });
 
   it("serves the logo of a clinic the user belongs to, revalidated on each use", async () => {
@@ -52,7 +54,7 @@ describe("GET /api/clinics/[clinicId]/logo", () => {
   });
 
   it("answers 404 when the clinic has no logo", async () => {
-    findFirst.mockResolvedValue({ logoDataUrl: null });
+    findFirst.mockResolvedValue(undefined);
 
     expect((await request("mine")).status).toBe(404);
   });
@@ -62,6 +64,8 @@ describe("GET /api/clinics/[clinicId]/logo", () => {
 
     expect(response.status).toBe(304);
     expect(await response.text()).toBe("");
+    expect(findFirst).toHaveBeenCalledTimes(1);
+    expect(findFirst.mock.calls[0][0].columns).toEqual({ logoUpdatedAt: true });
   });
 
   it("still checks membership before a 304", async () => {

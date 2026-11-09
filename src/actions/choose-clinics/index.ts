@@ -12,12 +12,10 @@ import { clinicChoiceStatus } from "@/lib/clinic-access";
 import { clinicActionClient } from "@/lib/clinic-action";
 
 const supportContact = () =>
-  process.env.SUPPORT_EMAIL
-    ? ` (${process.env.SUPPORT_EMAIL})`
-    : "";
+  process.env.SUPPORT_EMAIL ? ` (${process.env.SUPPORT_EMAIL})` : "";
 
 export const chooseClinics = clinicActionClient
-  .schema(z.object({ clinicIds: z.array(z.string().uuid()).min(1) }))
+  .schema(z.object({ clinicIds: z.array(z.string().uuid()).min(1).max(100) }))
   .action(async ({ parsedInput, ctx }) => {
     const { clinicLimit, overClinicLimit, clinics } = ctx.user;
     const chosen = [...new Set(parsedInput.clinicIds)];

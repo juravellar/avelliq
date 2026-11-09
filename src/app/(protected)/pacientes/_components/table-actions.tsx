@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { deletePatient } from "@/actions/delete-patient";
+import { getPatient } from "@/actions/get-patient";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -16,7 +17,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,23 +34,52 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { patientsTable } from "@/db/schema";
+import { actionErrorMessage } from "@/lib/action-errors";
 
+import type { PatientRow } from "./patient-row";
 import UpsertPatientForm from "./upsert-patient-form";
 
 type Patient = typeof patientsTable.$inferSelect;
 
 interface PatientTableActionsProps {
-  patient: Patient;
+  patient: PatientRow;
 }
 
 export function PatientTableActions({ patient }: PatientTableActionsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // The list only has a few columns; the full record is read on each open, so
+  // the form never shows stale data.
+  const [fullPatient, setFullPatient] = useState<Patient | null>(null);
+
+  const handleOpenChange = async (open: boolean) => {
+    setIsOpen(open);
+    if (!open) return;
+    setFullPatient(null);
+    try {
+      const result = await getPatient({ id: patient.id });
+      if (!result?.data) {
+        toast.error(
+          actionErrorMessage(result ?? {}, "Erro ao carregar paciente."),
+        );
+        setIsOpen(false);
+        return;
+      }
+      setFullPatient(result.data);
+    } catch {
+      toast.error("Erro ao carregar paciente.");
+      setIsOpen(false);
+    }
+  };
 
   const handleDeletePatientClick = async () => {
     setIsDeleting(true);
     try {
-      await deletePatient({ id: patient.id });
+      const result = await deletePatient({ id: patient.id });
+      if (result?.serverError || result?.validationErrors) {
+        toast.error(actionErrorMessage(result, "Erro ao deletar paciente."));
+        return;
+      }
       toast.success("Paciente deletado com sucesso.");
     } catch {
       toast.error("Erro ao deletar paciente.");
@@ -61,18 +98,27 @@ export function PatientTableActions({ patient }: PatientTableActionsProps) {
       <DropdownMenuContent>
         <DropdownMenuLabel>{patient.name}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
               <EditIcon className="text-foreground mr-2 h-4 w-4" />
               Editar
             </DropdownMenuItem>
           </DialogTrigger>
-          <UpsertPatientForm
-            patient={patient}
-            onSuccess={() => setIsOpen(false)}
-            isOpen={isOpen}
-          />
+          {fullPatient ? (
+            <UpsertPatientForm
+              patient={fullPatient}
+              onSuccess={() => setIsOpen(false)}
+              isOpen={isOpen}
+            />
+          ) : (
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{patient.name}</DialogTitle>
+                <DialogDescription>Carregando paciente...</DialogDescription>
+              </DialogHeader>
+            </DialogContent>
+          )}
         </Dialog>
         <AlertDialog>
           <AlertDialogTrigger asChild>

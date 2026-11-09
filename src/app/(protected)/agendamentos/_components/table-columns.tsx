@@ -1,10 +1,9 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 
 import { appointmentsTable, doctorsTable } from "@/db/schema";
+import { inClinicTimezone } from "@/helpers/time";
 
 import type { PatientOption } from "./patient-option";
 import { AppointmentsTableActions } from "./table-actions";
@@ -48,9 +47,10 @@ export function createAppointmentsTableColumns({
       header: "Data e Hora",
       cell: (params) => {
         const appointment = params.row.original;
-        return format(new Date(appointment.date), "dd/MM/yyyy 'às' HH:mm", {
-          locale: ptBR,
-        });
+        // Clinic time on both server and browser, or hydration disagrees.
+        return inClinicTimezone(appointment.date).format(
+          "DD/MM/YYYY [às] HH:mm",
+        );
       },
     },
     {

@@ -13,6 +13,13 @@ describe("auth user fields", () => {
   });
 });
 
+describe("auth storage", () => {
+  it("encrypts OAuth tokens and hashes verification identifiers", () => {
+    expect(auth.options.account.encryptOAuthTokens).toBe(true);
+    expect(auth.options.verification.storeIdentifier).toBe("hashed");
+  });
+});
+
 describe("auth sessions", () => {
   it("end after 12 hours without use, renewed at most hourly", () => {
     expect(auth.options.session.expiresIn).toBe(12 * 60 * 60);

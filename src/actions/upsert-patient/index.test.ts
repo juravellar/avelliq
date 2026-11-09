@@ -33,13 +33,14 @@ vi.mock("@/db", () => {
   return { db };
 });
 
+import { TERMS_VERSION } from "@/lib/terms";
+
 import { upsertPatient } from ".";
 
 const CLINIC_ID = "11111111-1111-4111-8111-111111111111";
 const PATIENT_ID = "33333333-3333-4333-8333-333333333333";
 
 const input = {
-  id: PATIENT_ID,
   name: "João Silva",
   email: "joao@example.com",
   phoneNumber: "11999999999",
@@ -51,7 +52,11 @@ describe("upsertPatient", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.getSession.mockResolvedValue({
-      user: { plan: null, clinic: { id: CLINIC_ID } },
+      user: {
+        termsVersion: TERMS_VERSION,
+        plan: null,
+        clinic: { id: CLINIC_ID },
+      },
     });
     mocks.findPatient.mockResolvedValue(undefined);
     mocks.countPatients.mockResolvedValue(0);
@@ -94,9 +99,18 @@ describe("upsertPatient", () => {
   it("refuses to overwrite a patient from another clinic", async () => {
     mocks.findPatient.mockResolvedValue({ id: PATIENT_ID, clinicId: "other" });
 
-    const result = await upsertPatient(input);
+    const result = await upsertPatient({ ...input, id: PATIENT_ID });
 
     expect(result?.serverError).toBeDefined();
+    expect(mocks.values).not.toHaveBeenCalled();
+  });
+
+  it("doesn't recreate a patient that was deleted meanwhile", async () => {
+    const result = await upsertPatient({ ...input, id: PATIENT_ID });
+
+    expect(result?.serverError).toBe(
+      "Paciente não encontrado. Atualize a página.",
+    );
     expect(mocks.values).not.toHaveBeenCalled();
   });
 
@@ -196,7 +210,11 @@ describe("upsertPatient", () => {
       phoneNumber: "1199",
     });
 
-    const result = await upsertPatient({ ...input, phoneNumber: "1199" });
+    const result = await upsertPatient({
+      ...input,
+      id: PATIENT_ID,
+      phoneNumber: "1199",
+    });
 
     expect(result?.serverError).toBeUndefined();
   });

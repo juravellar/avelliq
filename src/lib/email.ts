@@ -5,6 +5,12 @@ const RESEND_API_URL = "https://api.resend.com/emails";
 export const isEmailConfigured = () =>
   Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
 
+// Verification is required when e-mail can be sent, and always in production:
+// there, missing e-mail settings must not leave sign-up open to anyone using
+// someone else's address.
+export const requiresEmailVerification = () =>
+  isEmailConfigured() || process.env.VERCEL_ENV === "production";
+
 const escapeHtml = (value: string) =>
   value.replace(
     /[&<>"']/g,
@@ -28,9 +34,19 @@ const PRODUCTION_URL = "https://www.avelliq.com.br";
 // show the logo as a broken image.
 const LOGO_URL = `${PRODUCTION_URL}/apple-icon.png`;
 
-// `||`, not `??`: an empty variable (as .env.example leaves it) means unset.
-const appUrl = () =>
-  (process.env.NEXT_PUBLIC_APP_URL || PRODUCTION_URL).replace(/\/$/, "");
+// The app's own address, without a trailing slash. `||`, not `??`: an empty
+// variable (as .env.example leaves it) means unset. A preview deployment then
+// uses its own URL (VERCEL_ENV, not NODE_ENV: previews build as production), so its e-mails and checkout don't link to production.
+export const appUrl = () => {
+  const preview =
+    process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : null;
+  return (process.env.NEXT_PUBLIC_APP_URL || preview || PRODUCTION_URL).replace(
+    /\/$/,
+    "",
+  );
+};
 
 // Gmail and Apple Mail fill the inbox preview with whatever text follows the
 // preview line; these invisible characters take that space instead.

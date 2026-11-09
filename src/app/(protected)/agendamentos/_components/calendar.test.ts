@@ -67,6 +67,20 @@ describe("calendarSlots", () => {
     expect(slots).toHaveLength(21);
   });
 
+  it("adds the slots of appointments outside the doctors' hours", () => {
+    const at = (day: string, time: string) => ({
+      date: clinicDateTimeToDate(day, time),
+    });
+    const slots = calendarSlots(
+      [doctor],
+      [at("2026-10-19", "07:30:00"), at("2026-10-19", "15:10:00")],
+    );
+    expect(slots[0]).toBe("07:30:00");
+    expect(slots).toContain("15:00:00");
+    expect(slots.at(-1)).toBe("15:00:00");
+    expect(slots).toEqual([...slots].sort());
+  });
+
   it("shows business hours when there is no doctor", () => {
     expect(calendarSlots([])[0]).toBe("08:00:00");
     expect(calendarSlots([]).at(-1)).toBe("18:00:00");
@@ -85,6 +99,10 @@ describe("groupByCell", () => {
     ]);
     expect(cells.get("2026-10-19|09:00:00")).toHaveLength(2);
     expect(cells.get("2026-10-20|10:30:00")).toHaveLength(1);
+    // An off-grid minute falls in the slot it started in.
+    expect(
+      groupByCell([at("2026-10-19", "09:15:00")]).get("2026-10-19|09:00:00"),
+    ).toHaveLength(1);
     // 23:30 in São Paulo is already the next day in UTC.
     expect(
       appointmentCell(clinicDateTimeToDate("2026-10-19", "23:30:00")),

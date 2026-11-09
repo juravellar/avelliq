@@ -35,6 +35,7 @@ describe("deleteAccount", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.getSession.mockResolvedValue({
       user: { id: "user_1", email: "Dona@Clinica.com" },
+      session: { createdAt: new Date() },
     });
     mocks.findUser.mockResolvedValue({
       id: "user_1",
@@ -74,6 +75,18 @@ describe("deleteAccount", () => {
       "O email digitado não confere com o da conta.",
     );
     expect(mocks.cancelBillableSubscriptions).not.toHaveBeenCalled();
+    expect(mocks.deleteAccountData).not.toHaveBeenCalled();
+  });
+
+  it("refuses on a sign-in older than 10 minutes", async () => {
+    mocks.getSession.mockResolvedValue({
+      user: { id: "user_1", email: "Dona@Clinica.com" },
+      session: { createdAt: new Date(Date.now() - 11 * 60 * 1000) },
+    });
+
+    const result = await deleteAccount({ confirmEmail: "dona@clinica.com" });
+
+    expect(result?.serverError).toContain("saia e entre de novo");
     expect(mocks.deleteAccountData).not.toHaveBeenCalled();
   });
 

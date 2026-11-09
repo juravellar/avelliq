@@ -17,9 +17,11 @@ const isValidBirthDate = (value: string) =>
 // Shared by the form and the server action, so both apply the same rules.
 export const upsertPatientSchema = z.object({
   id: z.string().uuid().optional(),
-  name: z.string().trim().min(1, {
-    message: "Nome é obrigatório.",
-  }),
+  name: z
+    .string()
+    .trim()
+    .min(1, { message: "Nome é obrigatório." })
+    .max(120, { message: "Use até 120 caracteres." }),
   email: z.string().email({
     message: "Email inválido.",
   }),
@@ -29,7 +31,7 @@ export const upsertPatientSchema = z.object({
     .trim()
     .min(1, { message: "Número de telefone é obrigatório." }),
   sex: z.enum(["male", "female"], {
-    required_error: "Sexo é obrigatório.",
+    error: "Sexo é obrigatório.",
   }),
   birthDate: z
     .string()

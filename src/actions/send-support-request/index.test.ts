@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/support/tickets", () => ({
   createFormTicket: mocks.createFormTicket,
+}));
+vi.mock("@/lib/support/import", () => ({
   acknowledge: mocks.acknowledge,
   TICKET_HEADER: "X-Avelliq-Protocol",
   formNoticeHeader: (protocol: string) => `${protocol}; assinatura`,

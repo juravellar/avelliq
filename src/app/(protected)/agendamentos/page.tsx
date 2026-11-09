@@ -1,4 +1,4 @@
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import {
@@ -10,6 +10,7 @@ import {
   PageHeaderContent,
   PageTitle,
 } from "@/components/ui/page-container";
+import { PaginationLinks } from "@/components/ui/pagination-links";
 import { db } from "@/db";
 import { appointmentsTable, doctorsTable, patientsTable } from "@/db/schema";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/helpers/time";
 import { createGate } from "@/lib/create-gate";
 import { writeBlock } from "@/lib/free-period";
+import { pageCount, pageNumber } from "@/lib/pagination";
 import { getPlanUsage } from "@/lib/plan-usage";
 import { getServerSession } from "@/lib/server-session";
 
@@ -31,8 +33,18 @@ import { PATIENT_OPTION_COLUMNS } from "./_components/patient-option";
 import { type AppointmentsView, ViewToggle } from "./_components/view-toggle";
 
 interface AppointmentsPageProps {
-  searchParams: Promise<{ visao?: string; semana?: string; medico?: string }>;
+  searchParams: Promise<{
+    visao?: string;
+    semana?: string;
+    medico?: string;
+    pagina?: string;
+  }>;
 }
+
+const PAGE_SIZE = 50;
+
+const pageHref = (page: number) =>
+  page > 1 ? `/agendamentos?pagina=${page}` : "/agendamentos";
 
 const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
   const session = await getServerSession();
@@ -58,7 +70,9 @@ const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
     end: clinicDayRange(days[6]).end,
   };
 
-  const [patients, doctors, appointments] = await Promise.all([
+  const page = pageNumber(params.pagina);
+
+  const [patients, doctors, appointments, [{ total }]] = await Promise.all([
     db.query.patientsTable.findMany({
       where: eq(patientsTable.clinicId, clinicId),
       columns: PATIENT_OPTION_COLUMNS,
@@ -77,10 +91,30 @@ const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
           : eq(appointmentsTable.clinicId, clinicId),
       with: {
         patient: { columns: PATIENT_OPTION_COLUMNS },
-        doctor: true,
+        doctor: { columns: { id: true, name: true, specialty: true } },
       },
+      // Newest first; the id keeps the order stable between pages. The
+      // calendar is already bounded to a week, the list is paged.
+      orderBy: [desc(appointmentsTable.date), desc(appointmentsTable.id)],
+      ...(view === "lista" && {
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }),
     }),
+    // Only the list is paged.
+    view === "lista"
+      ? db
+          .select({ total: count() })
+          .from(appointmentsTable)
+          .where(eq(appointmentsTable.clinicId, clinicId))
+      : [{ total: 0 }],
   ]);
+  // After deleting the last appointment of the last page, show the new last
+  // one.
+  const pages = pageCount(total, PAGE_SIZE);
+  if (view === "lista" && page > pages) {
+    redirect(pageHref(pages));
+  }
 
   const usage = await getPlanUsage(
     session.user.clinic.id,
@@ -123,6 +157,9 @@ const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
             days={days}
             slots={calendarSlots(
               doctorId ? doctors.filter(({ id }) => id === doctorId) : doctors,
+              doctorId
+                ? appointments.filter((a) => a.doctorId === doctorId)
+                : appointments,
             )}
             appointments={appointments}
             doctors={doctors}
@@ -140,6 +177,9 @@ const AppointmentsPage = async ({ searchParams }: AppointmentsPageProps) => {
             doctors={doctors}
             patients={patients}
           />
+        )}
+        {view === "lista" && (
+          <PaginationLinks page={page} pages={pages} href={pageHref} />
         )}
       </PageContent>
     </PageContainer>

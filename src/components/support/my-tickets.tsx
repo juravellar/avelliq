@@ -10,14 +10,16 @@ import {
   listMyTickets,
   replyMyTicket,
 } from "@/actions/my-support-tickets";
+import { CLINIC_TIMEZONE } from "@/helpers/time";
 import { actionErrorMessage } from "@/lib/action-errors";
 import {
   isFinalStatus,
   splitQuotedReply,
   STATUS_NAMES,
-  type SupportStatus,
 } from "@/lib/support/tickets-helpers";
 import { cn } from "@/lib/utils";
+
+import { StatusBadge } from "./status-badge";
 
 const when = (iso: string) =>
   new Intl.DateTimeFormat("pt-BR", {
@@ -25,23 +27,8 @@ const when = (iso: string) =>
     month: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
+    timeZone: CLINIC_TIMEZONE,
   }).format(new Date(iso));
-
-function StatusPill({ status }: { status: SupportStatus }) {
-  return (
-    <span
-      className={cn(
-        "rounded-full px-2 py-0.5 text-[11px] font-medium",
-        isFinalStatus(status)
-          ? "bg-muted text-muted-foreground"
-          : "bg-avelliq-muted text-foreground",
-      )}
-    >
-      {STATUS_NAMES[status]}
-    </span>
-  );
-}
 
 function Problem({ error }: { error?: string }) {
   return (
@@ -99,7 +86,7 @@ export function MyTicketList({
                 <span className="font-mono text-xs font-semibold">
                   {ticket.protocol}
                 </span>
-                <StatusPill status={ticket.status} />
+                <StatusBadge status={ticket.status} />
                 {ticket.unread && (
                   <span className="bg-avelliq text-avelliq-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
                     Nova resposta
@@ -179,7 +166,7 @@ export function MyTicket({
           <span className="font-mono text-xs font-semibold">
             {ticket.protocol}
           </span>
-          <StatusPill status={ticket.status} />
+          <StatusBadge status={ticket.status} />
         </div>
         <p className="text-muted-foreground truncate text-xs">
           {ticket.subject}

@@ -25,10 +25,15 @@ export const planForSubscription = (
     return null;
   }
   // Subscriptions created before plans existed only had the Essencial price.
+  // The same fallback also hides a price the app doesn't know (a typo in an
+  // env var, a price added in the dashboard): syncSubscription logs those.
   return (
     planForPriceId(subscription.items.data[0]?.price.id, mode) ?? "essential"
   );
 };
+
+const hasUnknownPrice = (subscription: Stripe.Subscription, mode: StripeMode) =>
+  planForPriceId(subscription.items.data[0]?.price.id, mode) === null;
 
 type User = typeof usersTable.$inferSelect;
 
@@ -187,6 +192,13 @@ export const syncSubscription = async (
     }
 
     const chosen = chooseSubscription(candidates, currentId, mode);
+    if (chosen && hasUnknownPrice(chosen, mode)) {
+      // Once per sync, ids only: the user is billed as Essencial, which for a
+      // wrong price id would be a silent mistake.
+      console.error(
+        `Subscription ${chosen.id} has price ${chosen.items.data[0]?.price.id ?? "(none)"}, which matches no plan; treating it as Essencial`,
+      );
+    }
     // Without a subscription granting access, an event about another
     // customer must not replace the one checkout will use next.
     const nextCustomerId = chosen
@@ -205,8 +217,11 @@ export const syncSubscription = async (
             }
           : {
               // The simulated plan: without a test subscription, QA is back
-              // on its real one.
-              qaPlan: chosen ? planForSubscription(chosen, mode) : null,
+              // on its real one. A QA user who never had one keeps the plan
+              // picked by hand (set-qa-plan), which this event doesn't own.
+              ...(chosen || currentId
+                ? { qaPlan: chosen ? planForSubscription(chosen, mode) : null }
+                : {}),
               stripeTestSubscriptionId: chosen?.id ?? null,
               stripeTestCustomerId: nextCustomerId,
             },

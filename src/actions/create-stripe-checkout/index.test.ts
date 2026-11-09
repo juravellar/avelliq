@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
     listSubscriptions: vi.fn(),
     retrieveSubscription: vi.fn(),
     stripeKey: vi.fn(),
+    execute: vi.fn(),
   };
 });
 
@@ -22,12 +23,15 @@ vi.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
 vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession: mocks.getSession } },
 }));
-vi.mock("@/db", () => ({
-  db: {
+vi.mock("@/db", () => {
+  const db: Record<string, unknown> = {
     query: { usersTable: { findFirst: mocks.findUser } },
     update: () => ({ set: mocks.set }),
-  },
-}));
+  };
+  db.transaction = async (fn: (tx: unknown) => unknown) =>
+    fn({ ...db, execute: mocks.execute });
+  return { db };
+});
 vi.mock("stripe", () => ({
   default: class {
     constructor(key: string) {
@@ -98,6 +102,18 @@ describe("createStripeCheckout", () => {
         line_items: [{ price: "price_professional", quantity: 1 }],
       }),
       { idempotencyKey: expect.stringMatching(/^checkout:[0-9a-f]{64}$/) },
+    );
+  });
+
+  it("takes the user's lock before looking at Stripe", async () => {
+    await createStripeCheckout({ plan: "professional" });
+
+    const lockedAt = mocks.execute.mock.invocationCallOrder[0];
+    expect(lockedAt).toBeLessThan(
+      mocks.listSubscriptions.mock.invocationCallOrder[0],
+    );
+    expect(lockedAt).toBeLessThan(
+      mocks.createSession.mock.invocationCallOrder[0],
     );
   });
 

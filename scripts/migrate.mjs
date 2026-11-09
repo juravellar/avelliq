@@ -23,6 +23,9 @@ const journal = JSON.parse(
   readFileSync(`${migrationsFolder}/meta/_journal.json`, "utf8"),
 );
 
+// Arbitrary constant shared by every build that migrates this database.
+const MIGRATION_LOCK_ID = 7_351_902_448;
+
 const client = new pg.Client({
   connectionString: process.env.DATABASE_URL,
   connectionTimeoutMillis: 15_000,
@@ -60,14 +63,27 @@ if (pending.length === 0) {
   process.exit(0);
 }
 
-// A migration waiting behind a busy table would hold up every query queued
-// after it; giving up after 10 seconds fails the build instead.
-await client.query("set lock_timeout = '10s'");
 console.log(`Applying ${pending.map(({ tag }) => tag).join(", ")}...`);
 try {
+  // The migrator reads what is already applied before it opens its
+  // transaction, so two overlapping builds could both see the same pending
+  // set. The advisory lock makes the second one wait, then find nothing left
+  // to apply. It belongs to this session, so it is also released if the
+  // connection drops. It comes before the lock_timeout, which also applies to
+  // advisory locks: the second build must wait, however long the first takes.
+  await client.query("select pg_advisory_lock($1)", [MIGRATION_LOCK_ID]);
+  // A migration waiting behind a busy table would hold up every query queued
+  // after it; giving up after 10 seconds fails the build instead. This is a
+  // session-level SET, which holds because the client is one plain connection
+  // (not a transaction-mode pooler) that also runs the migration statements.
+  await client.query("set lock_timeout = '10s'");
   await migrate(drizzle(client), { migrationsFolder });
 } catch (error) {
   await fail(`Migration failed, nothing was applied: ${error.message}`);
+} finally {
+  await client
+    .query("select pg_advisory_unlock($1)", [MIGRATION_LOCK_ID])
+    .catch(() => {});
 }
 console.log("Migrations applied.");
 await client.end();

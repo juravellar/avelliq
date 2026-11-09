@@ -56,11 +56,17 @@ export const usersTable = pgTable("users", {
   // The reason is a key of MODERATION_REASONS, never free text.
   blockedAt: timestamp("blocked_at"),
   blockedReason: text("blocked_reason"),
-  blockedBy: text("blocked_by"),
+  // The moderator's account; cleared if that account is deleted.
+  blockedBy: text("blocked_by").references((): AnyPgColumn => usersTable.id, {
+    onDelete: "set null",
+  }),
   // An admin asked an owner to delete the account; only owners delete.
   deletionRequestedAt: timestamp("deletion_requested_at"),
   deletionRequestReason: text("deletion_request_reason"),
-  deletionRequestedBy: text("deletion_requested_by"),
+  deletionRequestedBy: text("deletion_requested_by").references(
+    (): AnyPgColumn => usersTable.id,
+    { onDelete: "set null" },
+  ),
   // A QA account's customer and subscription in the test Stripe account,
   // kept apart so test billing never mixes with real billing. A test
   // subscription only ever sets qaPlan, never plan.
@@ -215,6 +221,8 @@ export const doctorsTable = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
+    // Every page of the app lists a clinic's doctors.
+    index("doctors_clinic_id_idx").on(table.clinicId),
     // A CRM identifies one doctor: no two doctors of a clinic share it.
     uniqueIndex("doctors_clinic_crm_unique")
       .on(table.clinicId, table.crmState, table.crmNumber)
@@ -269,6 +277,8 @@ export const patientsTable = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
+    // Every page of the app lists a clinic's patients.
+    index("patients_clinic_id_idx").on(table.clinicId),
     // A CPF identifies one person: no two patients of a clinic share it.
     uniqueIndex("patients_clinic_cpf_unique")
       .on(table.clinicId, table.cpf)
@@ -307,8 +317,12 @@ export const appointmentsTable = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  // A doctor can only be booked once per slot, even under concurrent requests.
   (table) => [
+    // The agenda and the dashboard read a clinic's appointments by date; the
+    // patient index serves the joins and the cascade when a patient is deleted.
+    index("appointments_clinic_date_idx").on(table.clinicId, table.date),
+    index("appointments_patient_id_idx").on(table.patientId),
+    // A doctor can only be booked once per slot, even under concurrent requests.
     uniqueIndex("appointments_doctor_id_date_unique").on(
       table.doctorId,
       table.date,
@@ -450,6 +464,23 @@ export const supportMessagesTable = pgTable(
     index("support_messages_message_id_idx").on(table.messageId),
   ],
 );
+
+// Received e-mails whose tickets were deleted (account deletion, retention).
+// They still exist in Resend, and without this the next inbox sync would
+// import them again as new tickets. Only a SHA-256 of the Resend id is kept,
+// so no personal data stays behind; never purged, as Resend may hold the mail
+// for longer than any cutoff we could pick.
+export const supportDeletedEmailsTable = pgTable("support_deleted_emails", {
+  resendEmailIdHash: text("resend_email_id_hash").primaryKey(),
+  deletedAt: timestamp("deleted_at").defaultNow().notNull(),
+});
+
+// One row that says when the support inbox was last brought in, so only one
+// server instance at a time does it however many are running.
+export const supportInboxSyncTable = pgTable("support_inbox_sync", {
+  key: text("key").primaryKey(),
+  lastSyncedAt: timestamp("last_synced_at").notNull(),
+});
 
 export const supportTicketsTableRelations = relations(
   supportTicketsTable,
